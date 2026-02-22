@@ -1,14 +1,13 @@
 include ../../Makefile.include PYTHON3-VERSION ../../download-files.include
 DEPS = ../../Makefile.include Makefile PYTHON3-VERSION ../../download-files.include \
-                                 01-py312-cpython118618-1.patch \
-                                 01-py312-cpython118618-2.patch \
-                                 02-android-cpython114875.patch \
                                  apple.patch \
-                                 darwin_embedded.patch \
-                                 10-android-modules.patch
+                                 process-vm-ready.patch \
+                                 static-compile.patch \
+                                 10-android-modules.patch \
+                                 11-android-ctypes.patch \
+                                 12-android-arm.patch
 
 ifeq ($(findstring apple-darwin, $(HOST)), apple-darwin)
-  HOSTPLATFORM=_PYTHON_HOST_PLATFORM="darwin"
   ifeq ($(OS), darwin_embedded)
     EXTRA_CONFIGURE=ac_cv_func_wait3=no ac_cv_func_wait4=no ac_cv_func_waitpid=no \
                     ac_cv_func_execv=no ac_cv_func_fexecv=no ac_cv_func_getentropy=no \
@@ -26,28 +25,17 @@ ifeq ($(findstring apple-darwin, $(HOST)), apple-darwin)
   EXTRA_CONFIGURE+= ac_cv_lib_intl_textdomain=yes
 endif
 
-ifeq ($(OS),android)
-  LIBS=-liconv
-endif
-
 ifeq ($(OS), linux)
   EXTRA_CONFIGURE=ac_cv_pthread=yes
   ifeq ($(TARGET_PLATFORM),webos)
     # Force intl check to succeed
     EXTRA_CONFIGURE+=ac_cv_lib_intl_textdomain=yes
-    # Export iconv as LIBS for link ordering (After -lintl from configure search)
-    LIBS=-liconv
   endif
 endif
 
 # Disabled c extension modules for all platforms
-PY_MODULES = py_cv_module_audioop=n/a \
-             py_cv_module_grp=n/a \
-             py_cv_module_ossaudiodev=n/a \
-             py_cv_module_spwd=n/a \
+PY_MODULES = py_cv_module_grp=n/a \
              py_cv_module_syslog=n/a \
-             py_cv_module__crypt=n/a \
-             py_cv_module_nis=n/a \
              py_cv_module__dbm=n/a \
              py_cv_module__gdbm=n/a \
              py_cv_module__uuid=n/a \
@@ -91,8 +79,9 @@ CONFIGURE=./configure --prefix=$(PREFIX) \
                       $(PY_MODULES) \
                       $(EXTRA_CONFIGURE)
 
-export LDFLAGS
-export LIBS
+# Use LIBS as some platforms (webos) require iconv to be late on the linker line
+# appending to LDFLAGS puts the iconv link argument too early, causing link failures
+export LIBS=$(LINK_ICONV)
 
 LIBDYLIB=$(PLATFORM)/libpython$(PYTHON_VERSION).a
 
@@ -101,28 +90,27 @@ all: .installed-$(PLATFORM)
 $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
 	rm -rf $(PLATFORM)/*; mkdir -p $(PLATFORM)
 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
-	cd $(PLATFORM); patch -p1 -i ../01-py312-cpython118618-1.patch
-	cd $(PLATFORM); patch -p1 -i ../01-py312-cpython118618-2.patch
 	cd $(PLATFORM); patch -p1 -i ../apple.patch
-ifeq ($(OS),darwin_embedded)
-	cd $(PLATFORM); patch -p1 -i ../darwin_embedded.patch
-endif
+	cd $(PLATFORM); patch -p1 -i ../static-compile.patch
+	cd $(PLATFORM); patch -p1 -i ../process-vm-ready.patch
 
 ifeq ($(OS),android)
-	cd $(PLATFORM); patch -p1 -i ../02-android-cpython114875.patch
 	cd $(PLATFORM); patch -p1 -i ../10-android-modules.patch
+	cd $(PLATFORM); patch -p1 -i ../11-android-ctypes.patch
+	cd $(PLATFORM); patch -p1 -i ../12-android-arm.patch
 endif
 	cd $(PLATFORM); $(AUTORECONF)
 	cd $(PLATFORM); $(CONFIGURE)
 
 $(LIBDYLIB): $(PLATFORM)
-	$(MAKE) -C $(PLATFORM) $(HOSTPLATFORM) libpython$(PYTHON_VERSION).a
+	$(MAKE) -C $(PLATFORM) libpython$(PYTHON_VERSION).a
 	touch $@
 
 .installed-$(PLATFORM): $(LIBDYLIB)
 # We specifically use -j1 as some threading issues can occur with install directory creation
 	$(MAKE) -C $(PLATFORM) $(HOSTPLATFORM) install -j1
 	find $(PREFIX)/lib/python$(PYTHON_VERSION) -type f -name "*.pyc" -delete
+	find $(PREFIX)/lib/python$(PYTHON_VERSION) -type d -name "config-$(PYTHON_VERSION)-*" -exec rm -r {} +
 	touch $(LIBDYLIB)
 	touch $@
 

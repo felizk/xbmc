@@ -9,7 +9,6 @@
 #include "PVRProvider.h"
 
 #include "ServiceBroker.h"
-#include "guilib/LocalizeStrings.h"
 #include "pvr/PVRDatabase.h"
 #include "pvr/PVRManager.h"
 #include "pvr/addons/PVRClient.h"
@@ -23,7 +22,6 @@
 #include <string>
 
 using namespace PVR;
-
 
 const std::string CPVRProvider::IMAGE_OWNER_PATTERN = "pvrprovider";
 

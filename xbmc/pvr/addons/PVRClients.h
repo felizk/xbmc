@@ -23,7 +23,6 @@ class CVariant;
 
 namespace ADDON
 {
-struct AddonEvent;
 class CAddonInfo;
 
 } // namespace ADDON
@@ -67,6 +66,11 @@ public:
   void Continue();
 
   /*!
+   * @brief Destroy all clients.
+   */
+  void DestroyClients();
+
+  /*!
    * @brief Update all clients, sync with Addon Manager state (start, restart, shutdown clients).
    * @param changedAddonId The id of the changed addon, empty string denotes 'any addon'.
    */
@@ -90,12 +94,6 @@ public:
    * @return True if the client was found, false otherwise.
    */
   bool StopClient(int clientId, bool restart);
-
-  /*!
-   * @brief Handle addon events (enable, disable, ...).
-   * @param event The addon event.
-   */
-  void OnAddonEvent(const ADDON::AddonEvent& event);
 
   /*!
    * @brief Get the number of created clients.

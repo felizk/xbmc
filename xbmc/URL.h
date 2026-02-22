@@ -18,16 +18,15 @@
 #undef SetPort // WIN32INCLUDES this is defined as SetPortA in WinSpool.h which is being included _somewhere_
 #endif
 
-class CURL
+class CURL final
 {
 public:
-  explicit CURL(std::string strURL) { Parse(std::move(strURL)); }
-
   CURL() = default;
-  virtual ~CURL(void);
+  explicit CURL(std::string strURL);
 
+  bool operator==(const CURL& url) const { return url.Get() == Get(); }
   // explicit equals operator for std::string comparison
-  bool operator==(const std::string &url) const { return Get() == url; }
+  friend bool operator==(const CURL& url, const std::string_view str) { return url.Get() == str; }
 
   void Reset();
   void Parse(std::string strURL);
@@ -132,10 +131,7 @@ public:
    \param type a lower-case scheme name, e.g. "smb".
    \return true if the url is of the given scheme, false otherwise.
    */
-  bool IsProtocol(const char *type) const
-  {
-    return IsProtocolEqual(m_strProtocol, type);
-  }
+  bool IsProtocol(std::string_view type) const { return IsProtocolEqual(m_strProtocol, type); }
 
   /*! \brief Check whether a URL protocol is a given URL scheme.
    Both parameters MUST be lower-case.  Typically this would be called using
@@ -144,7 +140,7 @@ public:
    \param type a lower-case scheme name, e.g. "smb".
    \return true if the url is of the given scheme, false otherwise.
    */
-  static bool IsProtocolEqual(const std::string& protocol, const char *type);
+  static bool IsProtocolEqual(const std::string& protocol, std::string_view type);
 
   /*! \brief Check whether a URL is a given filetype.
    Comparison is effectively case-insensitive as both the parameter
@@ -152,10 +148,7 @@ public:
    \param type a lower-case filetype, e.g. "mp3".
    \return true if the url is of the given filetype, false otherwise.
    */
-  bool IsFileType(const char *type) const
-  {
-    return m_strFileType == type;
-  }
+  bool IsFileType(std::string_view type) const { return m_strFileType == type; }
 
   void GetOptions(std::map<std::string, std::string> &options) const;
   bool HasOption(const std::string &key) const;
@@ -171,7 +164,42 @@ public:
   void SetProtocolOption(const std::string &key, const std::string &value);
   void RemoveProtocolOption(const std::string &key);
 
-protected:
+  bool HasExtension(std::string_view extensions) const;
+  std::string GetExtension() const;
+  bool IsStack() const;
+  bool IsMultiPath() const;
+  bool IsFavourite() const;
+  bool IsPlugin() const;
+  bool IsScript() const;
+  bool IsAddonsPath() const;
+  bool IsSourcesPath() const;
+  bool IsCDDA() const;
+  bool IsISO9660() const;
+  bool IsMusicDb() const;
+  bool IsVideoDb() const;
+  bool IsBlurayPath() const;
+  bool IsAndroidApp() const;
+  bool IsLibraryFolder() const;
+  bool IsUPnP() const;
+  bool IsAPK() const;
+  bool IsZIP() const; // also checks for comic books!
+  bool IsArchive() const;
+  bool IsCBZ() const;
+  bool IsCBR() const;
+  bool IsDiscImage() const;
+  bool IsPicture() const;
+
+  bool HasParentInHostname() const;
+  bool HasEncodedHostname() const;
+  bool HasEncodedFilename() const;
+
+  bool IsLibraryContent() const;
+
+  bool IsBDFile() const;
+  bool IsDVDFile() const;
+  bool IsOpticalMediaFile() const;
+
+private:
   int m_iPort = 0;
   std::string m_strHostName;
   std::string m_strShareName;

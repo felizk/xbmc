@@ -18,7 +18,6 @@
 #include "dialogs/GUIDialogNumeric.h"
 #include "guilib/GUIMessage.h"
 #include "guilib/GUIWindowManager.h"
-#include "guilib/LocalizeStrings.h"
 #include "input/actions/Action.h"
 #include "input/actions/ActionIDs.h"
 #include "messaging/ApplicationMessenger.h"
@@ -41,6 +40,8 @@
 #include "pvr/guilib/PVRGUIActionsTimers.h"
 #include "pvr/recordings/PVRRecordings.h"
 #include "pvr/timers/PVRTimers.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "video/guilib/VideoPlayActionProcessor.h"
@@ -97,7 +98,7 @@ void CGUIWindowPVRGuideBase::InitEpgGridControl()
     CPVRManager& mgr = CServiceBroker::GetPVRManager();
 
     const std::shared_ptr<CPVRChannel> channel = mgr.ChannelGroups()->GetByPath(
-        mgr.Get<PVR::GUI::Channels>().GetSelectedChannelPath(m_bRadio));
+        mgr.Get<PVR::GUI::Channels>().GetSelectedChannelPath(IsRadio()));
 
     if (channel)
     {
@@ -217,7 +218,7 @@ void CGUIWindowPVRGuideBase::UpdateSelectedItemPath()
         epgGridContainer->GetSelectedChannelGroupMember();
     if (groupMember)
       CServiceBroker::GetPVRManager().Get<PVR::GUI::Channels>().SetSelectedChannelPath(
-          m_bRadio, groupMember->Path());
+          IsRadio(), groupMember->Path());
   }
 }
 
@@ -225,7 +226,8 @@ void CGUIWindowPVRGuideBase::UpdateButtons()
 {
   CGUIWindowPVRBase::UpdateButtons();
 
-  SET_CONTROL_LABEL(CONTROL_LABEL_HEADER1, g_localizeStrings.Get(19032));
+  SET_CONTROL_LABEL(CONTROL_LABEL_HEADER1,
+                    CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19032));
 
   const std::shared_ptr<const CPVRChannelGroup> group = GetChannelGroup();
   SET_CONTROL_LABEL(CONTROL_LABEL_HEADER2, group ? group->GroupName() : "");
@@ -234,7 +236,7 @@ void CGUIWindowPVRGuideBase::UpdateButtons()
 bool CGUIWindowPVRGuideBase::Update(const std::string& strDirectory,
                                     bool updateFilterPath /* = true */)
 {
-  if (m_bUpdating)
+  if (IsUpdating())
   {
     // Prevent concurrent updates. Instead, let the timeline items refresh thread pick it up later.
     m_bRefreshTimelineItems = true;
@@ -249,7 +251,7 @@ bool CGUIWindowPVRGuideBase::Update(const std::string& strDirectory,
     if (epgGridContainer)
       m_bChannelSelectionRestored = epgGridContainer->SetChannel(
           CServiceBroker::GetPVRManager().Get<PVR::GUI::Channels>().GetSelectedChannelPath(
-              m_bRadio));
+              IsRadio()));
   }
 
   return bReturn;
@@ -277,6 +279,9 @@ bool CGUIWindowPVRGuideBase::GetDirectory(const std::string& strDirectory, CFile
     items.RemoveDiscCache(GetID());
     items.Assign(*newTimeline, false);
   }
+
+  // update the view state's reference to the current items
+  m_guiState.reset(CGUIViewState::GetViewState(GetID(), items));
 
   return true;
 }
@@ -669,16 +674,16 @@ bool CGUIWindowPVRGuideBase::OnContextButton(int itemNumber, CONTEXT_BUTTON butt
 namespace
 {
 
-template<typename A>
 class CContextMenuFunctions : public CContextButtons
 {
 public:
-  explicit CContextMenuFunctions(A* instance) : m_instance(instance) {}
+  using ContextMenuFunction = std::function<bool()>;
 
-  void Add(bool (A::*function)(), unsigned int resId)
+  template<class T>
+  void Add(T&& function, unsigned int resId)
   {
     CContextButtons::Add(static_cast<unsigned int>(size()), resId);
-    m_functions.emplace_back(std::bind_front(function, m_instance));
+    m_functions.emplace_back(std::forward<T>(function));
   }
 
   bool Call(int idx)
@@ -690,8 +695,7 @@ public:
   }
 
 private:
-  A* m_instance = nullptr;
-  std::vector<std::function<bool()>> m_functions;
+  std::vector<ContextMenuFunction> m_functions;
 };
 
 } // unnamed namespace
@@ -702,7 +706,8 @@ bool CGUIWindowPVRGuideBase::OnContextButtonNavigate(CONTEXT_BUTTON button)
 
   if (button == CONTEXT_BUTTON_NAVIGATE)
   {
-    if (g_SkinInfo->HasSkinFile("DialogPVRGuideControls.xml"))
+    auto skin = CServiceBroker::GetGUI()->GetSkinInfo();
+    if (skin && skin->HasSkinFile("DialogPVRGuideControls.xml"))
     {
       // use controls dialog
       CGUIDialog* dialog =
@@ -715,22 +720,22 @@ bool CGUIWindowPVRGuideBase::OnContextButtonNavigate(CONTEXT_BUTTON button)
     else
     {
       // use context menu
-      CContextMenuFunctions<CGUIWindowPVRGuideBase> buttons(this);
-      buttons.Add(&CGUIWindowPVRGuideBase::GotoBegin, 19063); // First programme
-      buttons.Add(&CGUIWindowPVRGuideBase::Go12HoursBack, 19317); // 12 hours back
-      buttons.Add(&CGUIWindowPVRGuideBase::GotoCurrentProgramme, 19070); // Current programme
-      buttons.Add(&CGUIWindowPVRGuideBase::Go12HoursForward, 19318); // 12 hours forward
-      buttons.Add(&CGUIWindowPVRGuideBase::GotoEnd, 19064); // Last programme
-      buttons.Add(&CGUIWindowPVRGuideBase::OpenDateSelectionDialog, 19288); // Date selector
-      buttons.Add(&CGUIWindowPVRGuideBase::GotoFirstChannel, 19322); // First channel
+      CContextMenuFunctions buttons;
+      buttons.Add([this]() { return GotoBegin(); }, 19063); // First programme
+      buttons.Add([this]() { return Go12HoursBack(); }, 19317); // 12 hours back
+      buttons.Add([this]() { return GotoCurrentProgramme(); }, 19070); // Current programme
+      buttons.Add([this]() { return Go12HoursForward(); }, 19318); // 12 hours forward
+      buttons.Add([this]() { return GotoEnd(); }, 19064); // Last programme
+      buttons.Add([this]() { return OpenDateSelectionDialog(); }, 19288); // Date selector
+      buttons.Add([this]() { return GotoFirstChannel(); }, 19322); // First channel
       if (CServiceBroker::GetPVRManager().PlaybackState()->IsPlayingTV() ||
           CServiceBroker::GetPVRManager().PlaybackState()->IsPlayingRadio() ||
           CServiceBroker::GetPVRManager().PlaybackState()->IsPlayingEpgTag())
-        buttons.Add(&CGUIWindowPVRGuideBase::GotoPlayingChannel, 19323); // Playing channel
-      buttons.Add(&CGUIWindowPVRGuideBase::GotoLastChannel, 19324); // Last channel
-      buttons.Add(&CGUIWindowPVRBase::ActivatePreviousChannelGroup, 19319); // Previous group
-      buttons.Add(&CGUIWindowPVRBase::ActivateNextChannelGroup, 19320); // Next group
-      buttons.Add(&CGUIWindowPVRBase::OpenChannelGroupSelectionDialog, 19321); // Group selector
+        buttons.Add([this]() { return GotoPlayingChannel(); }, 19323); // Playing channel
+      buttons.Add([this]() { return GotoLastChannel(); }, 19324); // Last channel
+      buttons.Add([this]() { return ActivatePreviousChannelGroup(); }, 19319); // Previous group
+      buttons.Add([this]() { return ActivateNextChannelGroup(); }, 19320); // Next group
+      buttons.Add([this]() { return OpenChannelGroupSelectionDialog(); }, 19321); // Group selector
 
       int buttonIdx = 0;
       int lastButtonIdx = 2; // initially select "Current programme"
@@ -851,7 +856,9 @@ bool CGUIWindowPVRGuideBase::OpenDateSelectionDialog()
   CGUIEPGGridContainer* epgGridContainer = GetGridControl();
   epgGridContainer->GetSelectedDate().GetAsSystemTime(date);
 
-  if (CGUIDialogNumeric::ShowAndGetDate(date, g_localizeStrings.Get(19288))) /* Go to date */
+  if (CGUIDialogNumeric::ShowAndGetDate(
+          date,
+          CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19288))) /* Go to date */
   {
     epgGridContainer->GoToDate(CDateTime(date));
     bReturn = true;
@@ -928,7 +935,8 @@ void CGUIWindowPVRGuideBase::GetChannelNumbers(std::vector<std::string>& channel
 }
 
 CPVRRefreshTimelineItemsThread::CPVRRefreshTimelineItemsThread(CGUIWindowPVRGuideBase* pGuideWindow)
-  : CThread("epg-grid-refresh-timeline-items"), m_pGuideWindow(pGuideWindow)
+  : CThread("epg-grid-refresh-timeline-items"),
+    m_pGuideWindow(pGuideWindow)
 {
 }
 
@@ -1007,12 +1015,12 @@ void CPVRRefreshTimelineItemsThread::Process()
   m_done.Set();
 }
 
-std::string CGUIWindowPVRTVGuide::GetRootPath() const
+std::string CGUIWindowPVRTVGuide::GetRootPath()
 {
   return "pvr://guide/tv/";
 }
 
-std::string CGUIWindowPVRRadioGuide::GetRootPath() const
+std::string CGUIWindowPVRRadioGuide::GetRootPath()
 {
   return "pvr://guide/radio/";
 }

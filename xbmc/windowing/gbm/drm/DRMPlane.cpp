@@ -64,7 +64,7 @@ bool CDRMPlane::SupportsFormatAndModifier(uint32_t format, uint64_t modifier)
       return false;
     }
 
-    auto formatModifier = std::find(formatModifiers->begin(), formatModifiers->end(), modifier);
+    auto formatModifier = std::ranges::find(*formatModifiers, modifier);
     if (formatModifier == formatModifiers->end())
     {
       CLog::Log(LOGDEBUG, "CDRMPlane::{} - modifier ({}) not supported for format ({})",
@@ -82,9 +82,8 @@ bool CDRMPlane::SupportsFormatAndModifier(uint32_t format, uint64_t modifier)
 
 void CDRMPlane::FindModifiers()
 {
-  auto property = std::find_if(m_propsInfo.begin(), m_propsInfo.end(), [](auto& prop) {
-    return StringUtils::EqualsNoCase(prop->name, "IN_FORMATS");
-  });
+  auto property = std::find_if(m_propsInfo.begin(), m_propsInfo.end(), [](auto& prop)
+                               { return StringUtils::EqualsNoCase(prop->name, "IN_FORMATS"); });
 
   uint64_t blob_id = 0;
   if (property != m_propsInfo.end())

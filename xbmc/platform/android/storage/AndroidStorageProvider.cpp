@@ -8,10 +8,12 @@
 
 #include "AndroidStorageProvider.h"
 
+#include "ServiceBroker.h"
 #include "Util.h"
 #include "filesystem/Directory.h"
 #include "filesystem/File.h"
-#include "guilib/LocalizeStrings.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "utils/RegExp.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
@@ -109,7 +111,7 @@ std::string CAndroidStorageProvider::unescape(const std::string& str)
           octString += str[i];
           i += 1;
         }
-        if (octString.length() != 0)
+        if (!octString.empty())
         {
           uint8_t val = 0;
           for (int j=octString.length()-1; j>=0; --j)
@@ -134,14 +136,14 @@ void CAndroidStorageProvider::GetLocalDrives(std::vector<CMediaSource>& localDri
   if (GetExternalStorage(path) && !path.empty() && XFILE::CDirectory::Exists(path))
   {
     share.strPath = path;
-    share.strName = g_localizeStrings.Get(21456);
+    share.strName = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(21456);
     share.m_ignore = true;
     localDrives.push_back(share);
   }
 
   // root directory
   share.strPath = "/";
-  share.strName = g_localizeStrings.Get(21453);
+  share.strName = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(21453);
   localDrives.push_back(share);
 }
 

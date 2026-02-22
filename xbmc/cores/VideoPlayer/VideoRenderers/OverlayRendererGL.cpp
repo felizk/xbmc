@@ -270,7 +270,7 @@ COverlayGlyphGL::~COverlayGlyphGL()
 
 void COverlayGlyphGL::Render(SRenderState& state)
 {
-  if ((m_texture == 0) || (m_vertex.size() == 0))
+  if ((m_texture == 0) || (m_vertex.empty()))
     return;
 
   glEnable(GL_BLEND);
@@ -462,7 +462,7 @@ void COverlayTextureGL::Render(SRenderState& state)
 
   glUniform1f(depthLoc, -1.0f);
 
-  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, nullptr);
 
   glDisableVertexAttribArray(posLoc);
   glDisableVertexAttribArray(tex0Loc);

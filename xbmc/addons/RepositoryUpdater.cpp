@@ -24,11 +24,12 @@
 #include "events/EventLog.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/GUIWindowManager.h"
-#include "guilib/LocalizeStrings.h"
+#include "jobs/JobManager.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "settings/lib/Setting.h"
-#include "utils/JobManager.h"
 #include "utils/ProgressJob.h"
 #include "utils/log.h"
 
@@ -113,8 +114,8 @@ bool CRepositoryUpdateJob::DoWork()
         for (const auto& path : oldAddon->Screenshots())
           textureDB.InvalidateCachedTexture(path);
 
-        for (const auto& art : oldAddon->Art())
-          textureDB.InvalidateCachedTexture(art.second);
+        for (const auto& [_, arturl] : oldAddon->Art())
+          textureDB.InvalidateCachedTexture(arturl);
       }
     }
     textureDB.CommitMultipleExecute();
@@ -124,10 +125,7 @@ bool CRepositoryUpdateJob::DoWork()
   return true;
 }
 
-CRepositoryUpdater::CRepositoryUpdater(CAddonMgr& addonMgr) :
-  m_timer(this),
-  m_doneEvent(true),
-  m_addonMgr(addonMgr)
+CRepositoryUpdater::CRepositoryUpdater(CAddonMgr& addonMgr) : m_timer(this), m_addonMgr(addonMgr)
 {
   CServiceBroker::GetSettingsComponent()->GetSettings()->RegisterCallback(
       this, {CSettings::SETTING_ADDONS_AUTOUPDATES});
@@ -135,7 +133,15 @@ CRepositoryUpdater::CRepositoryUpdater(CAddonMgr& addonMgr) :
 
 void CRepositoryUpdater::Start()
 {
-  m_addonMgr.Events().Subscribe(this, &CRepositoryUpdater::OnEvent);
+  m_addonMgr.Events().Subscribe(this,
+                                [this](const ADDON::AddonEvent& event)
+                                {
+                                  if (typeid(event) == typeid(ADDON::AddonEvents::Enabled))
+                                  {
+                                    if (m_addonMgr.HasType(event.addonId, AddonType::REPOSITORY))
+                                      ScheduleUpdate(UpdateScheduleType::First);
+                                  }
+                                });
   ScheduleUpdate(UpdateScheduleType::First);
 }
 
@@ -147,19 +153,10 @@ CRepositoryUpdater::~CRepositoryUpdater()
   m_addonMgr.Events().Unsubscribe(this);
 }
 
-void CRepositoryUpdater::OnEvent(const ADDON::AddonEvent& event)
-{
-  if (typeid(event) == typeid(ADDON::AddonEvents::Enabled))
-  {
-    if (m_addonMgr.HasType(event.addonId, AddonType::REPOSITORY))
-      ScheduleUpdate(UpdateScheduleType::First);
-  }
-}
-
 void CRepositoryUpdater::OnJobComplete(unsigned int jobID, bool success, CJob* job)
 {
   std::unique_lock lock(m_criticalSection);
-  m_jobs.erase(std::find(m_jobs.begin(), m_jobs.end(), job));
+  m_jobs.erase(std::ranges::find(m_jobs, job));
   if (m_jobs.empty())
   {
     CLog::Log(LOGDEBUG, "CRepositoryUpdater: done.");
@@ -167,25 +164,25 @@ void CRepositoryUpdater::OnJobComplete(unsigned int jobID, bool success, CJob* j
 
     VECADDONS updates = m_addonMgr.GetAvailableUpdates();
 
-    if (CAddonSystemSettings::GetInstance().GetAddonAutoUpdateMode() == AUTO_UPDATES_NOTIFY)
+    if (!updates.empty() &&
+        CAddonSystemSettings::GetInstance().GetAddonAutoUpdateMode() == AUTO_UPDATES_NOTIFY)
     {
-      if (!updates.empty())
-      {
-        if (updates.size() == 1)
-          CGUIDialogKaiToast::QueueNotification(
-              updates[0]->Icon(), updates[0]->Name(), g_localizeStrings.Get(24068),
-              TOAST_DISPLAY_TIME, false, TOAST_DISPLAY_TIME);
-        else
-          CGUIDialogKaiToast::QueueNotification(
-              "", g_localizeStrings.Get(24001), g_localizeStrings.Get(24061),
-              TOAST_DISPLAY_TIME, false, TOAST_DISPLAY_TIME);
+      if (updates.size() == 1)
+        CGUIDialogKaiToast::QueueNotification(
+            updates[0]->Icon(), updates[0]->Name(),
+            CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24068),
+            TOAST_DISPLAY_TIME, false, TOAST_DISPLAY_TIME);
+      else
+        CGUIDialogKaiToast::QueueNotification(
+            "", CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24001),
+            CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24061),
+            TOAST_DISPLAY_TIME, false, TOAST_DISPLAY_TIME);
 
-        auto eventLog = CServiceBroker::GetEventLog();
-        for (const auto &addon : updates)
-        {
-          if (eventLog)
-            eventLog->Add(EventPtr(new CAddonManagementEvent(addon, 24068)));
-        }
+      auto eventLog = CServiceBroker::GetEventLog();
+      for (const auto& addon : updates)
+      {
+        if (eventLog)
+          eventLog->Add(std::make_shared<CAddonManagementEvent>(addon, 24068));
       }
     }
 
@@ -219,7 +216,9 @@ static void SetProgressIndicator(CRepositoryUpdateJob* job)
 {
   auto dialog = CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogExtendedProgressBar>(WINDOW_DIALOG_EXT_PROGRESS);
   if (dialog)
-    job->SetProgressIndicators(dialog->GetHandle(g_localizeStrings.Get(24092)), nullptr);
+    job->SetProgressIndicators(
+        dialog->GetHandle(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24092)),
+        nullptr);
 }
 
 void CRepositoryUpdater::CheckForUpdates(const ADDON::RepositoryPtr& repo, bool showProgress)
@@ -231,17 +230,17 @@ void CRepositoryUpdater::CheckForUpdates(const ADDON::RepositoryPtr& repo, bool 
     return;
   }
 
-  auto job = std::find_if(m_jobs.begin(), m_jobs.end(),
-      [&](CRepositoryUpdateJob* job){ return job->GetAddon()->ID() == repo->ID(); });
+  const auto job = std::ranges::find_if(m_jobs, [&repo](const CRepositoryUpdateJob* updateJob)
+                                        { return updateJob->GetAddon()->ID() == repo->ID(); });
 
   if (job == m_jobs.end())
   {
-    auto* job = new CRepositoryUpdateJob(repo);
-    m_jobs.push_back(job);
+    auto* updatJob = new CRepositoryUpdateJob(repo);
+    m_jobs.emplace_back(updatJob);
     m_doneEvent.Reset();
     if (showProgress)
-      SetProgressIndicator(job);
-    CServiceBroker::GetJobManager()->AddJob(job, this, CJob::PRIORITY_LOW);
+      SetProgressIndicator(updatJob);
+    CServiceBroker::GetJobManager()->AddJob(updatJob, this, CJob::PRIORITY_LOW);
   }
   else
   {
@@ -286,15 +285,17 @@ CDateTime CRepositoryUpdater::LastUpdated() const
   CAddonDatabase db;
   db.Open();
   std::vector<CDateTime> updateTimes;
-  std::transform(
-      repos.begin(), repos.end(), std::back_inserter(updateTimes), [&](const AddonPtr& repo) {
-        const auto updateData = db.GetRepoUpdateData(repo->ID());
-        if (updateData.lastCheckedAt.IsValid() && updateData.lastCheckedVersion == repo->Version())
-          return updateData.lastCheckedAt;
-        return CDateTime();
-      });
+  std::ranges::transform(repos, std::back_inserter(updateTimes),
+                         [&](const AddonPtr& repo)
+                         {
+                           const auto updateData = db.GetRepoUpdateData(repo->ID());
+                           if (updateData.lastCheckedAt.IsValid() &&
+                               updateData.lastCheckedVersion == repo->Version())
+                             return updateData.lastCheckedAt;
+                           return CDateTime();
+                         });
 
-  return *std::min_element(updateTimes.begin(), updateTimes.end());
+  return *std::ranges::min_element(updateTimes);
 }
 
 CDateTime CRepositoryUpdater::ClosestNextCheck() const
@@ -306,15 +307,17 @@ CDateTime CRepositoryUpdater::ClosestNextCheck() const
   CAddonDatabase db;
   db.Open();
   std::vector<CDateTime> nextCheckTimes;
-  std::transform(
-      repos.begin(), repos.end(), std::back_inserter(nextCheckTimes), [&](const AddonPtr& repo) {
-        const auto updateData = db.GetRepoUpdateData(repo->ID());
-        if (updateData.nextCheckAt.IsValid() && updateData.lastCheckedVersion == repo->Version())
-          return updateData.nextCheckAt;
-        return CDateTime();
-      });
+  std::ranges::transform(repos, std::back_inserter(nextCheckTimes),
+                         [&](const AddonPtr& repo)
+                         {
+                           const auto updateData = db.GetRepoUpdateData(repo->ID());
+                           if (updateData.nextCheckAt.IsValid() &&
+                               updateData.lastCheckedVersion == repo->Version())
+                             return updateData.nextCheckAt;
+                           return CDateTime();
+                         });
 
-  return *std::min_element(nextCheckTimes.begin(), nextCheckTimes.end());
+  return *std::ranges::min_element(nextCheckTimes);
 }
 
 void CRepositoryUpdater::ScheduleUpdate(UpdateScheduleType scheduleType)

@@ -10,7 +10,6 @@
 
 #include "ServiceBroker.h"
 #include "XBDateTime.h"
-#include "guilib/LocalizeStrings.h"
 #include "pvr/PVRDatabase.h"
 #include "pvr/PVRManager.h"
 #include "pvr/addons/PVRClient.h"
@@ -19,6 +18,8 @@
 #include "pvr/epg/EpgContainer.h"
 #include "pvr/epg/EpgInfoTag.h"
 #include "pvr/providers/PVRProviders.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "utils/StringUtils.h"
 #include "utils/Variant.h"
 #include "utils/log.h"
@@ -69,7 +70,9 @@ CPVRChannel::CPVRChannel(const PVR_CHANNEL& channel, unsigned int iClientId)
     m_iClientProviderUid(channel.iClientProviderUid)
 {
   if (m_strChannelName.empty())
-    m_strChannelName = StringUtils::Format("{} {}", g_localizeStrings.Get(19029), m_iUniqueId);
+    m_strChannelName = StringUtils::Format(
+        "{} {}", CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19029),
+        m_iUniqueId);
 
   UpdateEncryptionName();
 }
@@ -154,19 +157,16 @@ bool CPVRChannel::CreateEPG()
       }
 
       // Subscribe for EPG delete event
-      m_epg->Events().Subscribe(this, &CPVRChannel::Notify);
+      m_epg->Events().Subscribe(this,
+                                [this](const PVREvent& event)
+                                {
+                                  if (event == PVREvent::EpgDeleted)
+                                    ResetEPG();
+                                });
       return true;
     }
   }
   return false;
-}
-
-void CPVRChannel::Notify(const PVREvent& event)
-{
-  if (event == PVREvent::EpgDeleted)
-  {
-    ResetEPG();
-  }
 }
 
 void CPVRChannel::ResetEPG()
@@ -351,8 +351,9 @@ bool CPVRChannel::SetChannelName(const std::string& strChannelName, bool bIsUser
   std::string strName(strChannelName);
 
   if (strName.empty())
-    strName = StringUtils::Format(g_localizeStrings.Get(19085),
-                                  m_clientChannelNumber.FormattedChannelNumber());
+    strName =
+        StringUtils::Format(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19085),
+                            m_clientChannelNumber.FormattedChannelNumber());
 
   std::unique_lock lock(m_critSection);
   if (m_strChannelName != strName || m_bIsUserSetName != bIsUserSetName)
@@ -420,16 +421,18 @@ std::string CPVRChannel::GetEncryptionName(int iCaid)
 {
   // http://www.dvb.org/index.php?id=174
   // http://en.wikipedia.org/wiki/Conditional_access_system
-  std::string strName(g_localizeStrings.Get(13205)); /* Unknown */
+  std::string strName(
+      CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13205)); /* Unknown */
 
   if (iCaid == 0x0000)
-    strName = g_localizeStrings.Get(19013); /* Free To Air */
+    strName =
+        CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19013); /* Free To Air */
   else if (iCaid >= 0x0001 && iCaid <= 0x009F)
-    strName = g_localizeStrings.Get(19014); /* Fixed */
+    strName = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19014); /* Fixed */
   else if (iCaid >= 0x00A0 && iCaid <= 0x00A1)
-    strName = g_localizeStrings.Get(338); /* Analog */
+    strName = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(338); /* Analog */
   else if (iCaid >= 0x00A2 && iCaid <= 0x00FF)
-    strName = g_localizeStrings.Get(19014); /* Fixed */
+    strName = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19014); /* Fixed */
   else if (iCaid >= 0x0100 && iCaid <= 0x01FF)
     strName = "SECA Mediaguard";
   else if (iCaid == 0x0464)

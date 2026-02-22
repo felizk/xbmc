@@ -36,7 +36,6 @@ set(SOURCES ActorProtocol.cpp
             HttpRangeUtils.cpp
             HttpResponse.cpp
             InfoLoader.cpp
-            JobManager.cpp
             JSONVariantParser.cpp
             JSONVariantWriter.cpp
             LabelFormatter.cpp
@@ -46,6 +45,7 @@ set(SOURCES ActorProtocol.cpp
             log.cpp
             Mime.cpp
             MovingSpeed.cpp
+            Mp4ChplReader.cpp
             Observer.cpp
             POUtils.cpp
             PlayerUtils.cpp
@@ -84,6 +84,7 @@ set(HEADERS ActorProtocol.h
             AliasShortcutUtils.h
             Archive.h
             ArtUtils.h
+            Artwork.h
             Base64.h
             BitstreamConverter.h
             BitstreamReader.h
@@ -131,14 +132,13 @@ set(HEADERS ActorProtocol.h
             ISerializable.h
             ISortable.h
             IXmlDeserializable.h
-            Job.h
-            JobManager.h
             JSONVariantParser.h
             JSONVariantWriter.h
             LabelFormatter.h
             LangCodeExpander.h
             LegacyPathTranslation.h
             Locale.h
+            LockInfo.h
             log.h
             logtypes.h
             Map.h
@@ -146,6 +146,7 @@ set(HEADERS ActorProtocol.h
             MemUtils.h
             Mime.h
             MovingSpeed.h
+            Mp4ChplReader.h
             Observer.h
             params_check_macros.h
             POUtils.h
@@ -161,6 +162,7 @@ set(HEADERS ActorProtocol.h
             ScraperParser.h
             ScraperUrl.h
             Screenshot.h
+            Set.h
             SortUtils.h
             Speed.h
             Stopwatch.h

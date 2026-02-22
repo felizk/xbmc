@@ -27,12 +27,13 @@
 #include "guilib/GUIMessage.h"
 #include "guilib/GUIWindow.h"
 #include "guilib/GUIWindowManager.h"
-#include "guilib/LocalizeStrings.h"
 #include "messaging/ApplicationMessenger.h"
 #include "messaging/helpers/DialogOKHelper.h"
 #include "peripherals/Peripherals.h"
 #include "peripherals/devices/Peripheral.h"
 #include "peripherals/dialogs/GUIDialogPeripheralSettings.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "utils/log.h"
 #include "view/GUIViewControl.h"
 #include "view/ViewState.h"
@@ -81,7 +82,20 @@ bool CGUIAgentControllerList::Initialize(GameClientPtr gameClient)
   // Register observers
   if (m_gameClient)
     m_gameClient->Input().RegisterObserver(this);
-  CServiceBroker::GetAddonMgr().Events().Subscribe(this, &CGUIAgentControllerList::OnEvent);
+  CServiceBroker::GetAddonMgr().Events().Subscribe(
+      this,
+      [this](const ADDON::AddonEvent& event)
+      {
+        if (typeid(event) == typeid(ADDON::AddonEvents::Enabled) || // Also called on install
+            typeid(event) == typeid(ADDON::AddonEvents::Disabled) || // Not called on uninstall
+            typeid(event) == typeid(ADDON::AddonEvents::ReInstalled) ||
+            typeid(event) == typeid(ADDON::AddonEvents::UnInstalled))
+        {
+          CGUIMessage msg(GUI_MSG_REFRESH_LIST, m_guiWindow.GetID(), CONTROL_AGENT_CONTROLLER_LIST);
+          msg.SetStringParam(event.addonId);
+          CServiceBroker::GetAppMessenger()->SendGUIMessage(msg, m_guiWindow.GetID());
+        }
+      });
   if (CServiceBroker::IsServiceManagerUp())
     CServiceBroker::GetGameServices().AgentInput().RegisterObserver(this);
 
@@ -147,8 +161,9 @@ void CGUIAgentControllerList::Refresh()
   // Add a "No controllers connected" item if no agents are available
   if (m_vecItems->IsEmpty())
   {
-    CFileItemPtr item =
-        std::make_shared<CFileItem>(g_localizeStrings.Get(35173)); // "No controllers connected"
+    CFileItemPtr item = std::make_shared<CFileItem>(
+        CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(
+            35173)); // "No controllers connected"
     m_vecItems->Add(std::move(item));
   }
 
@@ -193,19 +208,6 @@ void CGUIAgentControllerList::Notify(const Observable& obs, const ObservableMess
     }
     default:
       break;
-  }
-}
-
-void CGUIAgentControllerList::OnEvent(const ADDON::AddonEvent& event)
-{
-  if (typeid(event) == typeid(ADDON::AddonEvents::Enabled) || // Also called on install
-      typeid(event) == typeid(ADDON::AddonEvents::Disabled) || // Not called on uninstall
-      typeid(event) == typeid(ADDON::AddonEvents::ReInstalled) ||
-      typeid(event) == typeid(ADDON::AddonEvents::UnInstalled))
-  {
-    CGUIMessage msg(GUI_MSG_REFRESH_LIST, m_guiWindow.GetID(), CONTROL_AGENT_CONTROLLER_LIST);
-    msg.SetStringParam(event.addonId);
-    CServiceBroker::GetAppMessenger()->SendGUIMessage(msg, m_guiWindow.GetID());
   }
 }
 

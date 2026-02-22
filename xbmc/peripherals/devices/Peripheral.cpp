@@ -17,7 +17,6 @@
 #include "games/controllers/Controller.h"
 #include "games/controllers/ControllerLayout.h"
 #include "games/controllers/ControllerManager.h"
-#include "guilib/LocalizeStrings.h"
 #include "input/joysticks/interfaces/IInputHandler.h"
 #include "input/keyboard/generic/DefaultKeyboardHandling.h"
 #include "input/mouse/generic/DefaultMouseHandling.h"
@@ -223,7 +222,7 @@ void CPeripheral::GetSubdevices(PeripheralVector& subDevices) const
 
 bool CPeripheral::IsMultiFunctional(void) const
 {
-  return m_subDevices.size() > 0;
+  return !m_subDevices.empty();
 }
 
 std::vector<std::shared_ptr<CSetting>> CPeripheral::GetSettings(void) const

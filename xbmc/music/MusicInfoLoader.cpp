@@ -76,7 +76,7 @@ void CMusicInfoLoader::OnLoaderStart()
 
 bool CMusicInfoLoader::LoadAdditionalTagInfo(CFileItem* pItem)
 {
-  if (!pItem || (pItem->m_bIsFolder && !MUSIC::IsAudio(*pItem)) || PLAYLIST::IsPlayList(*pItem) ||
+  if (!pItem || (pItem->IsFolder() && !MUSIC::IsAudio(*pItem)) || PLAYLIST::IsPlayList(*pItem) ||
       pItem->IsNFO() || NETWORK::IsInternetStream(*pItem))
     return false;
 
@@ -150,7 +150,7 @@ bool CMusicInfoLoader::LoadItem(CFileItem* pItem)
 
 bool CMusicInfoLoader::LoadItemCached(CFileItem* pItem)
 {
-  if ((pItem->m_bIsFolder && !MUSIC::IsAudio(*pItem)) || PLAYLIST::IsPlayList(*pItem) ||
+  if ((pItem->IsFolder() && !MUSIC::IsAudio(*pItem)) || PLAYLIST::IsPlayList(*pItem) ||
       PLAYLIST::IsSmartPlayList(*pItem) ||
       StringUtils::StartsWithNoCase(pItem->GetPath(), "newplaylist://") ||
       StringUtils::StartsWithNoCase(pItem->GetPath(), "newsmartplaylist://") || pItem->IsNFO() ||
@@ -165,10 +165,10 @@ bool CMusicInfoLoader::LoadItemCached(CFileItem* pItem)
 
 bool CMusicInfoLoader::LoadItemLookup(CFileItem* pItem)
 {
-  if (m_pProgressCallback && !pItem->m_bIsFolder)
+  if (m_pProgressCallback && !pItem->IsFolder())
     m_pProgressCallback->SetProgressAdvance();
 
-  if ((pItem->m_bIsFolder && !MUSIC::IsAudio(*pItem)) || //
+  if ((pItem->IsFolder() && !MUSIC::IsAudio(*pItem)) || //
       PLAYLIST::IsPlayList(*pItem) || PLAYLIST::IsSmartPlayList(*pItem) || //
       StringUtils::StartsWithNoCase(pItem->GetPath(), "newplaylist://") || //
       StringUtils::StartsWithNoCase(pItem->GetPath(), "newsmartplaylist://") || //
@@ -179,7 +179,8 @@ bool CMusicInfoLoader::LoadItemLookup(CFileItem* pItem)
   {
     // first check the cached item
     CFileItemPtr mapItem = (*m_mapFileItems)[pItem->GetPath()];
-    if (mapItem && mapItem->m_dateTime==pItem->m_dateTime && mapItem->HasMusicInfoTag() && mapItem->GetMusicInfoTag()->Loaded())
+    if (mapItem && mapItem->HasMusicInfoTag() && mapItem->GetMusicInfoTag()->Loaded() &&
+        mapItem->GetDateTime() == pItem->GetDateTime())
     { // Query map if we previously cached the file on HD
       *pItem->GetMusicInfoTag() = *mapItem->GetMusicInfoTag();
       if (mapItem->HasArt("thumb"))
@@ -206,7 +207,7 @@ bool CMusicInfoLoader::LoadItemLookup(CFileItem* pItem)
       has a cuesheet document or is a music file with a cuesheet embedded in the tags, and it maps
       to more than one song then we can not fill the tag data and thumb from the database.
       */
-      MAPSONGS::iterator it = m_songsMap.find(pItem->GetPath()); // Find file in song map
+      auto it = m_songsMap.find(pItem->GetPath()); // Find file in song map
       if (it != m_songsMap.end() && it->second.size() == 1)
       {
         // Have we loaded this item from database before,
@@ -293,7 +294,7 @@ void CMusicInfoLoader::LoadCache(const std::string& strFileName, CFileItemList& 
   }
 }
 
-void CMusicInfoLoader::SaveCache(const std::string& strFileName, CFileItemList& items)
+void CMusicInfoLoader::SaveCache(const std::string& strFileName, const CFileItemList& items)
 {
   int iSize = items.Size();
 

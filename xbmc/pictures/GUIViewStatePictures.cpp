@@ -12,7 +12,6 @@
 #include "FileItemList.h"
 #include "ServiceBroker.h"
 #include "filesystem/Directory.h"
-#include "guilib/LocalizeStrings.h"
 #include "guilib/WindowIDs.h"
 #include "settings/MediaSourceSettings.h"
 #include "settings/Settings.h"
@@ -34,7 +33,7 @@ CGUIViewStateWindowPictures::CGUIViewStateWindowPictures(const CFileItemList& it
 
     SetViewAsControl(DEFAULT_VIEW_LIST);
 
-    SetSortOrder(SortOrderAscending);
+    SetSortOrder(SortOrder::ASCENDING);
   }
   else
   {

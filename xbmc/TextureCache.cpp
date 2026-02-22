@@ -20,11 +20,11 @@
 #include "guilib/Texture.h"
 #include "imagefiles/ImageCacheCleaner.h"
 #include "imagefiles/ImageFileURL.h"
+#include "jobs/Job.h"
+#include "jobs/JobManager.h"
 #include "profiles/ProfileManager.h"
 #include "settings/SettingsComponent.h"
 #include "utils/Crc32.h"
-#include "utils/Job.h"
-#include "utils/JobManager.h"
 #include "utils/StringUtils.h"
 #include "utils/URIUtils.h"
 #include "utils/log.h"
@@ -159,7 +159,7 @@ std::string CTextureCache::CacheImage(
     return "";
 
   std::unique_lock lock(m_processingSection);
-  if (m_processinglist.find(url) == m_processinglist.end())
+  if (!m_processinglist.contains(url))
   {
     m_processinglist.insert(url);
     lock.unlock();
@@ -179,7 +179,7 @@ std::string CTextureCache::CacheImage(
     m_completeEvent.Wait(1000ms);
     {
       std::unique_lock lock(m_processingSection);
-      if (m_processinglist.find(url) == m_processinglist.end())
+      if (!m_processinglist.contains(url))
         break;
     }
   }
@@ -322,7 +322,7 @@ void CTextureCache::OnCachingComplete(bool success, CTextureCacheJob *job)
 
 void CTextureCache::OnJobComplete(unsigned int jobID, bool success, CJob *job)
 {
-  if (strcmp(job->GetType(), kJobTypeCacheImage) == 0)
+  if (strcmp(job->GetType(), CTextureCacheJob::JOB_TYPE_CACHE_IMAGE) == 0)
     OnCachingComplete(success, static_cast<CTextureCacheJob*>(job));
   return CJobQueue::OnJobComplete(jobID, success, job);
 }

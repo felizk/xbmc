@@ -10,7 +10,6 @@
 
 #include "ServiceBroker.h"
 #include "cores/EdlEdit.h"
-#include "guilib/LocalizeStrings.h"
 #include "pvr/PVRManager.h"
 #include "pvr/addons/PVRClient.h"
 #include "pvr/channels/PVRChannel.h"
@@ -21,6 +20,8 @@
 #include "pvr/recordings/PVRRecordingsPath.h"
 #include "pvr/timers/PVRTimerInfoTag.h"
 #include "pvr/timers/PVRTimers.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/SettingsComponent.h"
 #include "utils/MathUtils.h"
@@ -479,7 +480,8 @@ void CPVRRecording::Update(const CPVRRecording& tag, const CPVRClient& client)
   }
 
   //Old Method of identifying TV show title and subtitle using m_strDirectory and strPlotOutline (deprecated)
-  std::string strShow = StringUtils::Format("{} - ", g_localizeStrings.Get(20364));
+  std::string strShow = StringUtils::Format(
+      "{} - ", CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20364));
   if (StringUtils::StartsWithNoCase(m_strPlotOutline, strShow))
   {
     CLog::Log(LOGWARNING, "PVR addon provides episode name in strPlotOutline which is deprecated");
@@ -502,7 +504,8 @@ void CPVRRecording::UpdatePath()
 {
   m_strFileNameAndPath = CPVRRecordingsPath(m_bIsDeleted, m_bRadio, m_strDirectory, m_strTitle,
                                             m_iSeason, m_iEpisode, GetYear(), m_strShowTitle,
-                                            m_strChannelName, m_recordingTime, m_strRecordingId);
+                                            m_strChannelName, m_recordingTime, m_strRecordingId)
+                             .AsString();
 }
 
 const CDateTime& CPVRRecording::RecordingTimeAsLocalTime() const

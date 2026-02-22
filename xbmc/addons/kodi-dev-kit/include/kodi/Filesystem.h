@@ -562,13 +562,17 @@ public:
             bool folder = false,
             int64_t size = -1,
             time_t dateTime = 0)
-    : m_label(label), m_path(path), m_folder(folder), m_size(size), m_dateTime(dateTime)
+    : m_label(label),
+      m_path(path),
+      m_folder(folder),
+      m_size(size),
+      m_dateTime(dateTime)
   {
   }
   //----------------------------------------------------------------------------
 
   //============================================================================
-  // @note Not necessary for addon development, therefore it's 
+  // @note Not necessary for addon development, therefore it's
   // disabled for doxygen below!
   //
   // @ingroup cpp_kodi_vfs_CDirEntry

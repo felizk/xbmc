@@ -73,7 +73,7 @@ bool CUDFDirectory::GetDirectory(const CURL& url, CFileItemList& items)
         std::string strDir(strRoot + filename);
         URIUtils::AddSlashAtEnd(strDir);
         pItem->SetPath(strDir);
-        pItem->m_bIsFolder = true;
+        pItem->SetFolder(true);
 
         items.Add(pItem);
       }
@@ -88,8 +88,8 @@ bool CUDFDirectory::GetDirectory(const CURL& url, CFileItemList& items)
 
       CFileItemPtr pItem(new CFileItem(filename));
       pItem->SetPath(strRoot + filename);
-      pItem->m_bIsFolder = false;
-      pItem->m_dwSize = udfread_file_size(file);
+      pItem->SetFolder(false);
+      pItem->SetSize(udfread_file_size(file));
       items.Add(pItem);
 
       udfread_file_close(file);

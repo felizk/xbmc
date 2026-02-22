@@ -30,7 +30,7 @@ namespace GBM
 
 struct drm_fb
 {
-  struct gbm_bo *bo = nullptr;
+  struct gbm_bo* bo = nullptr;
   uint32_t fb_id;
   uint32_t format;
 };
@@ -45,6 +45,7 @@ public:
   virtual bool SetActive(bool active) { return false; }
   virtual bool InitDrm();
   virtual void DestroyDrm();
+  virtual bool SupportsFencing() { return false; }
 
   int GetFileDescriptor() const { return m_fd; }
   int GetRenderNodeFileDescriptor() const { return m_renderFd; }
@@ -72,7 +73,7 @@ public:
 
 protected:
   bool OpenDrm(bool needConnector);
-  drm_fb* DrmFbGetFromBo(struct gbm_bo *bo);
+  drm_fb* DrmFbGetFromBo(struct gbm_bo* bo);
 
   int m_fd;
   CDRMConnector* m_connector{nullptr};
@@ -81,7 +82,7 @@ protected:
   CDRMCrtc* m_orig_crtc{nullptr};
   CDRMPlane* m_video_plane{nullptr};
   CDRMPlane* m_gui_plane{nullptr};
-  drmModeModeInfo *m_mode = nullptr;
+  drmModeModeInfo* m_mode = nullptr;
 
   int m_width = 0;
   int m_height = 0;
@@ -109,6 +110,6 @@ private:
   std::vector<std::unique_ptr<CDRMCrtc>> m_crtcs;
 };
 
-}
-}
-}
+} // namespace GBM
+} // namespace WINDOWING
+} // namespace KODI

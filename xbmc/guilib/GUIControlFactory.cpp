@@ -41,16 +41,19 @@
 #include "GUISpinControlEx.h"
 #include "GUITextBox.h"
 #include "GUIToggleButtonControl.h"
+#include "GUIUtils.h"
 #include "GUIVideoControl.h"
 #include "GUIVisualisationControl.h"
 #include "GUIWrappingListContainer.h"
-#include "LocalizeStrings.h"
+#include "ServiceBroker.h"
 #include "addons/Skin.h"
 #include "cores/RetroPlayer/guicontrols/GUIGameControl.h"
 #include "games/controllers/guicontrols/GUIGameController.h"
 #include "games/controllers/guicontrols/GUIGameControllerList.h"
 #include "input/actions/ActionIDs.h"
 #include "pvr/guilib/GUIEPGGridContainer.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "utils/CharsetConverter.h"
 #include "utils/RssManager.h"
 #include "utils/StringUtils.h"
@@ -491,7 +494,7 @@ bool CGUIControlFactory::GetConditionalVisibility(const TiXmlNode* control,
       conditions.emplace_back(node->FirstChild()->Value());
     node = node->NextSiblingElement("visible");
   }
-  if (!conditions.size())
+  if (conditions.empty())
     return false;
   if (conditions.size() == 1)
     condition = conditions[0];
@@ -643,7 +646,7 @@ void CGUIControlFactory::GetInfoLabel(const TiXmlNode* pControlNode,
 {
   std::vector<GUIINFO::CGUIInfoLabel> labels;
   GetInfoLabels(pControlNode, labelTag, labels, parentID);
-  if (labels.size())
+  if (!labels.empty())
     infoLabel = labels[0];
 }
 
@@ -660,9 +663,10 @@ bool CGUIControlFactory::GetInfoLabelFromElement(const TiXmlElement* element,
 
   std::string fallback = XMLUtils::GetAttribute(element, "fallback");
   if (StringUtils::IsNaturalNumber(label))
-    label = g_localizeStrings.Get(atoi(label.c_str()));
+    label = CGUIUtils::GetLocalizedString(std::atoi(label.c_str()));
+
   if (StringUtils::IsNaturalNumber(fallback))
-    fallback = g_localizeStrings.Get(atoi(fallback.c_str()));
+    fallback = CGUIUtils::GetLocalizedString(std::atoi(fallback.c_str()));
   else
     g_charsetConverter.unknownToUTF8(fallback);
   infoLabel.SetLabel(label, fallback, parentID);
@@ -698,7 +702,7 @@ void CGUIControlFactory::GetInfoLabels(const TiXmlNode* pControlNode,
   if (infoNode)
   { // <info> nodes override <label>'s (backward compatibility)
     std::string fallback;
-    if (infoLabels.size())
+    if (!infoLabels.empty())
       fallback = infoLabels[0].GetLabel(0);
     infoLabels.clear();
     while (infoNode)
@@ -718,7 +722,7 @@ std::string CGUIControlFactory::FilterLabel(const std::string& label)
 {
   std::string viewLabel = label;
   if (StringUtils::IsNaturalNumber(viewLabel))
-    viewLabel = g_localizeStrings.Get(atoi(label.c_str()));
+    viewLabel = CGUIUtils::GetLocalizedString(std::atoi(label.c_str()));
   else
     g_charsetConverter.unknownToUTF8(viewLabel);
   return viewLabel;
@@ -731,7 +735,7 @@ bool CGUIControlFactory::GetString(const TiXmlNode* pRootNode,
   if (!XMLUtils::GetString(pRootNode, strTag, text))
     return false;
   if (StringUtils::IsNaturalNumber(text))
-    text = g_localizeStrings.Get(atoi(text.c_str()));
+    text = CGUIUtils::GetLocalizedString(std::atoi(text.c_str()));
   return true;
 }
 
@@ -743,9 +747,10 @@ std::string CGUIControlFactory::GetType(const TiXmlElement* pControlNode)
   return type;
 }
 
-bool CGUIControlFactory::GetMovingSpeedConfig(const TiXmlNode* pRootNode,
-                                              const char* strTag,
-                                              KODI::UTILS::MOVING_SPEED::MapEventConfig& movingSpeedCfg)
+bool CGUIControlFactory::GetMovingSpeedConfig(
+    const TiXmlNode* pRootNode,
+    const char* strTag,
+    KODI::UTILS::MOVING_SPEED::MapEventConfig& movingSpeedCfg)
 {
   const TiXmlElement* msNode = pRootNode->FirstChildElement(strTag);
   if (!msNode)
@@ -1175,20 +1180,23 @@ CGUIControl* CGUIControlFactory::Create(int parentID,
   // view type
   VIEW_TYPE viewType = VIEW_TYPE_NONE;
   std::string viewLabel;
+
+  const auto& localizeStrings = CServiceBroker::GetResourcesComponent().GetLocalizeStrings();
+
   if (type == CGUIControl::GUICONTAINER_PANEL)
   {
     viewType = VIEW_TYPE_ICON;
-    viewLabel = g_localizeStrings.Get(536);
+    viewLabel = localizeStrings.Get(536);
   }
   else if (type == CGUIControl::GUICONTAINER_LIST)
   {
     viewType = VIEW_TYPE_LIST;
-    viewLabel = g_localizeStrings.Get(535);
+    viewLabel = localizeStrings.Get(535);
   }
   else
   {
     viewType = VIEW_TYPE_WRAP;
-    viewLabel = g_localizeStrings.Get(541);
+    viewLabel = localizeStrings.Get(541);
   }
   TiXmlElement* itemElement = pControlNode->FirstChildElement("viewtype");
   if (itemElement && itemElement->FirstChild())
@@ -1500,6 +1508,16 @@ CGUIControl* CGUIControlFactory::Create(int parentID,
       icontrol->SetAspectRatio(aspect);
       icontrol->SetCrossFade(fadeTime);
 
+      // Set image filter
+      GUIINFO::CGUIInfoLabel imageFilter;
+      GetInfoLabel(pControlNode, "imagefilter", imageFilter, parentID);
+      icontrol->SetImageFilter(imageFilter);
+
+      // Set diffuse filter
+      GUIINFO::CGUIInfoLabel diffuseFilter;
+      GetInfoLabel(pControlNode, "diffusefilter", diffuseFilter, parentID);
+      icontrol->SetDiffuseFilter(diffuseFilter);
+
       break;
     }
     case CGUIControl::GUICONTROL_MULTI_IMAGE:
@@ -1553,7 +1571,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID,
     }
     case CGUIControl::GUICONTAINER_EPGGRID:
     {
-      CGUIEPGGridContainer* epgGridContainer = new CGUIEPGGridContainer(
+      auto* epgGridContainer = new CGUIEPGGridContainer(
           parentID, id, posX, posY, width, height, orientation, scrollTime, preloadItems,
           timeBlocks, minutesPerTimeBlock, rulerUnit, textureProgressIndicator);
       control = epgGridContainer;
@@ -1617,7 +1635,7 @@ CGUIControl* CGUIControlFactory::Create(int parentID,
       CGUITextBox* tcontrol = static_cast<CGUITextBox*>(control);
 
       tcontrol->SetPageControl(pageControl);
-      if (infoLabels.size())
+      if (!infoLabels.empty())
         tcontrol->SetInfo(infoLabels[0]);
       tcontrol->SetAutoScrolling(pControlNode);
       tcontrol->SetMinHeight(minHeight);

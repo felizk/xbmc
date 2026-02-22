@@ -39,7 +39,7 @@ using namespace KEYMAP;
 bool CButtonTranslator::AddDevice(const std::string& strDevice)
 {
   // Only add the device if it isn't already in the list
-  if (m_deviceList.find(strDevice) != m_deviceList.end())
+  if (m_deviceList.contains(strDevice))
     return false;
 
   // Add the device
@@ -86,10 +86,10 @@ bool CButtonTranslator::Load()
       CFileItemList files;
       XFILE::CDirectory::GetDirectory(dir, files, ".xml", XFILE::DIR_FLAG_DEFAULTS);
       // Sort the list for filesystem based priorities, e.g. 01-keymap.xml, 02-keymap-overrides.xml
-      files.Sort(SortByFile, SortOrderAscending);
+      files.Sort(SortByFile, SortOrder::ASCENDING);
       for (int fileIndex = 0; fileIndex < files.Size(); ++fileIndex)
       {
-        if (!files[fileIndex]->m_bIsFolder)
+        if (!files[fileIndex]->IsFolder())
           success |= LoadKeymap(files[fileIndex]->GetPath());
       }
 
@@ -105,10 +105,10 @@ bool CButtonTranslator::Load()
           XFILE::CDirectory::GetDirectory(devicedir, files, ".xml", XFILE::DIR_FLAG_DEFAULTS);
           // Sort the list for filesystem based priorities, e.g. 01-keymap.xml,
           // 02-keymap-overrides.xml
-          files.Sort(SortByFile, SortOrderAscending);
+          files.Sort(SortByFile, SortOrder::ASCENDING);
           for (int fileIndex = 0; fileIndex < files.Size(); ++fileIndex)
           {
-            if (!files[fileIndex]->m_bIsFolder)
+            if (!files[fileIndex]->IsFolder())
               success |= LoadKeymap(files[fileIndex]->GetPath());
           }
         }

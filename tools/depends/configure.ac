@@ -77,9 +77,9 @@ AC_ARG_WITH([sdk-path],
 
 AC_ARG_WITH([ndk-path],
   [AS_HELP_STRING([--with-ndk-path],
-  [specify path to ndk (optional for android), default is sdk_path/ndk/27.2.12479018])],
+  [specify path to ndk (optional for android), default is sdk_path/ndk/28.2.13676358])],
   [use_ndk_path=$withval],
-  [use_ndk_path=$use_sdk_path/ndk/27.2.12479018])
+  [use_ndk_path=$use_sdk_path/ndk/28.2.13676358])
 
 AC_ARG_WITH([sdk],
   [AS_HELP_STRING([--with-sdk],
@@ -295,7 +295,7 @@ if test "x$LD" = "x"; then
   AC_MSG_ERROR(No linker found with name ${use_linker}. You may want to provide using --with-linker=<linker>)
 fi
 
-case $build in
+case $host in
   *darwin*)
     # MacOS 11 requires explicit isysroot for autoconf compiler tests
     # However we do not want to pollute CFLAGS/CXXFLAGS once compiler tests are complete
@@ -305,7 +305,7 @@ esac
 
 AC_PROG_CPP
 
-case $build in
+case $host in
   *darwin*)
     CFLAGS=$(echo "$CFLAGS" | sed "s|$host_includes||")
     CXXFLAGS=$(echo "$CXXFLAGS" | sed "s|$host_includes||")
@@ -314,7 +314,7 @@ esac
 case $host in
   *-*linux-android*)
     deps_dir="$use_host-$use_ndk_api-$build_type"
-    platform_cflags="-DANDROID -fexceptions -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fPIC -DPIC"
+    platform_cflags="-DANDROID -fexceptions -funwind-tables -fstack-protector-strong -no-canonical-prefixes -fPIC -DPIC -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
     optimize_flags="-Os"
     platform_ldflags="-Wl,--exclude-libs,libgcc.a -Wl,--exclude-libs,libatomic.a -L$prefix/$deps_dir/lib/android-$use_ndk_api"
 
@@ -370,7 +370,7 @@ case $host in
       use_cpu="armeabi-v7a"
     fi
     use_toolchain="${use_toolchain:-/usr}"
-    platform_cflags="-fPIC -DPIC -mcpu=cortex-a9 -mtune=cortex-a53 -mfloat-abi=softfp -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
+    platform_cflags="-fPIC -DPIC -mcpu=cortex-a53 -mtune=cortex-a53 -mfloat-abi=softfp -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64"
     platform_cxxflags="$platform_cflags -static-libstdc++"
     optimize_flags="-Os"
     platform_ldflags="-Wl,-rpath-link=$prefix/$deps_dir/lib"
@@ -531,10 +531,13 @@ case $build in
     fi
 esac
 
+# Android NDK < 28 has issues with iconv when built with newer SDK
+# unsure why webos requires special handling
 if test "$platform_os" = "android" || test "$target_platform" = "webos"; then
   need_libiconv=1
+  ac_cv_search_iconv_open=-liconv
 else
-  AC_SEARCH_LIBS([iconv_open],iconv, link_iconv=$ac_cv_search_iconv_open, link_iconv=-liconv; AC_MSG_WARN("No iconv support in toolchain. Will build libiconv."); need_libiconv=1)
+  AC_SEARCH_LIBS([iconv_open],iconv,, AC_MSG_WARN("No iconv support in toolchain. Will build libiconv."); need_libiconv=1; ac_cv_search_iconv_open=-liconv)
 fi
 
 case $build in
@@ -542,8 +545,8 @@ case $build in
     LDFLAGS=$(echo "$LDFLAGS" | sed "s|$platform_includes||")
 esac
 
-if test "$link_iconv" = "none required"; then
-  link_iconv=
+if test "$ac_cv_search_iconv_open" != "none required"; then
+  link_iconv=$ac_cv_search_iconv_open
 fi
 
 if test "x$prefix" = "xNONE"; then
@@ -664,7 +667,7 @@ platform_cflags_release="$tmp_cflags $release_cflags $optimize_flags $target_cfl
 platform_cxxflags_release="$tmp_cxxflags $release_cflags $optimize_flags $target_cxxflags"
 platform_cflags_debug="$tmp_cflags $debug_cflags $target_cflags"
 platform_cxxflags_debug="$tmp_cxxflags $debug_cflags $target_cxxflags"
-platform_ldflags="${platform_ldflags} $target_ldflags $LIBS"
+platform_ldflags="${platform_ldflags} $target_ldflags"
 
 if test "$use_debug" = "yes"; then
   platform_cflags="$platform_cflags_debug"
@@ -815,6 +818,7 @@ c = $MESON_CC
 cpp = $MESON_CXX
 ar = '$AR'
 strip = '$STRIP'
+cmake = '$prefix/$tool_dir/bin/cmake'
 pkgconfig = '$prefix/$tool_dir/bin/pkg-config'
 pkg-config = '$prefix/$tool_dir/bin/pkg-config'
 

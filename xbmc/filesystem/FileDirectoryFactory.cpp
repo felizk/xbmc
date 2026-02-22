@@ -50,7 +50,7 @@ CFileDirectoryFactory::CFileDirectoryFactory(void) = default;
 
 CFileDirectoryFactory::~CFileDirectoryFactory(void) = default;
 
-// return NULL + set pItem->m_bIsFolder to remove it completely from list.
+// return NULL + set pItem->IsFolder() to remove it completely from list.
 IFileDirectory* CFileDirectoryFactory::Create(const CURL& url, CFileItem* pItem, const std::string& strMask)
 {
   if (url.IsProtocol("stack")) // disqualify stack as we need to work with each of the parts instead
@@ -87,10 +87,10 @@ IFileDirectory* CFileDirectoryFactory::Create(const CURL& url, CFileItem* pItem,
         std::unique_ptr<CAudioDecoder> result = std::make_unique<CAudioDecoder>(addonInfo.second);
         if (!result->CreateDecoder() || !result->ContainsFiles(url))
         {
-          CLog::Log(LOGINFO,
-                    "CFileDirectoryFactory::{}: Addon '{}' support extension '{}' but creation "
-                    "failed (seems not supported), trying other addons and Kodi",
-                    __func__, addonInfo.second->ID(), strExtension);
+          CLog::LogF(LOGWARNING,
+                     "Addon '{}' support extension '{}' but creation failed (seems not supported), "
+                     "trying other addons and Kodi",
+                     addonInfo.second->ID(), strExtension);
           continue;
         }
         return result.release();
@@ -105,31 +105,41 @@ IFileDirectory* CFileDirectoryFactory::Create(const CURL& url, CFileItem* pItem,
       if (vfsAddon->HasFileDirectories())
       {
         auto exts = StringUtils::Split(vfsAddon->GetExtensions(), "|");
-        if (std::find(exts.begin(), exts.end(), strExtension) != exts.end())
+        if (std::ranges::find(exts, strExtension) != exts.end())
         {
           CVFSEntryIFileDirectoryWrapper* wrap = new CVFSEntryIFileDirectoryWrapper(vfsAddon);
           if (wrap->ContainsFiles(url))
           {
-            if (wrap->m_items.Size() == 1)
+            // Paths returned may contain encoded urls but with capitals (eg. %2A rather than %2a)
+            // CURL will always use lower case for encoded chars, so we need to normalize here
+            // Otherwise there may be file/path mismatches later on
+            for (auto& item : wrap->GetItems())
+            {
+              CURL itemUrl{item->GetPath()};
+              if (URIUtils::HasParentInHostname(itemUrl))
+                item->SetPath(itemUrl.Get());
+            }
+
+            if (wrap->GetItems().Size() == 1)
             {
               // one STORED file - collapse it down
-              *pItem = *wrap->m_items[0];
+              *pItem = *wrap->GetItems()[0];
             }
             else
             {
               // compressed or more than one file -> create a dir
-              pItem->SetPath(wrap->m_items.GetPath());
+              pItem->SetPath(wrap->GetItems().GetPath());
             }
 
             // Check for folder, if yes return also wrap.
             // Needed to fix for e.g. RAR files with only one file inside
-            pItem->m_bIsFolder = URIUtils::HasSlashAtEnd(pItem->GetPath());
-            if (pItem->m_bIsFolder)
+            pItem->SetFolder(URIUtils::HasSlashAtEnd(pItem->GetPath()));
+            if (pItem->IsFolder())
               return wrap;
           }
           else
           {
-            pItem->m_bIsFolder = true;
+            pItem->SetFolder(true);
           }
 
           delete wrap;
@@ -169,8 +179,8 @@ IFileDirectory* CFileDirectoryFactory::Create(const CURL& url, CFileItem* pItem,
     CFileItemList items;
     CDirectory::GetDirectory(zipURL, items, strMask, DIR_FLAG_DEFAULTS);
     if (items.Size() == 0) // no files
-      pItem->m_bIsFolder = true;
-    else if (items.Size() == 1 && items[0]->m_idepth == 0 && !items[0]->m_bIsFolder)
+      pItem->SetFolder(true);
+    else if (items.Size() == 1 && items[0]->GetDepth() == 0 && !items[0]->IsFolder())
     {
       // one STORED file - collapse it down
       *pItem = *items[0];
@@ -190,8 +200,8 @@ IFileDirectory* CFileDirectoryFactory::Create(const CURL& url, CFileItem* pItem,
     CFileItemList items;
     CDirectory::GetDirectory(zipURL, items, strMask, DIR_FLAG_DEFAULTS);
     if (items.Size() == 0) // no files
-      pItem->m_bIsFolder = true;
-    else if (items.Size() == 1 && items[0]->m_idepth == 0 && !items[0]->m_bIsFolder)
+      pItem->SetFolder(true);
+    else if (items.Size() == 1 && items[0]->GetDepth() == 0 && !items[0]->IsFolder())
     {
       // one STORED file - collapse it down
       *pItem = *items[0];

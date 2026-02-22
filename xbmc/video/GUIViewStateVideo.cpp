@@ -73,7 +73,7 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
 
     SetViewAsControl(DEFAULT_VIEW_LIST);
 
-    SetSortOrder(SortOrderNone);
+    SetSortOrder(SortOrder::NONE);
   }
   else if (VIDEO::IsVideoDb(items))
   {
@@ -94,7 +94,7 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
 
         SetViewAsControl(DEFAULT_VIEW_LIST);
 
-        SetSortOrder(SortOrderNone);
+        SetSortOrder(SortOrder::NONE);
       }
       break;
       case NodeType::DIRECTOR:
@@ -121,8 +121,9 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
       break;
       case NodeType::SEASONS:
       {
-        AddSortMethod(SortBySortTitle, 556, LABEL_MASKS("%L", "","%L",""));  // Label, empty | Label, empty
-        SetSortMethod(SortBySortTitle);
+        AddSortMethod(SortBySeason, 20373,
+                      LABEL_MASKS("%L", "", "%L", "")); // Label, empty | Label, empty
+        SetSortMethod(SortBySeason);
 
         const CViewState *viewState = CViewStateSettings::GetInstance().Get("videonavseasons");
         SetViewAsControl(viewState->m_viewMode);
@@ -236,7 +237,7 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
         SetSortMethod(SortByNone);
 
         SetViewAsControl(CViewStateSettings::GetInstance().Get("videonavepisodes")->m_viewMode);
-        SetSortOrder(SortOrderNone);
+        SetSortOrder(SortOrder::NONE);
 
         break;
       }
@@ -269,7 +270,7 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
         if (params.GetSetId() > -1)
         {
           SetSortMethod(SortByYear);
-          SetSortOrder(SortOrderAscending);
+          SetSortOrder(SortOrder::ASCENDING);
         }
         else
         {
@@ -309,7 +310,7 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
 
         SetViewAsControl(CViewStateSettings::GetInstance().Get("videonavtitles")->m_viewMode);
 
-        SetSortOrder(SortOrderNone);
+        SetSortOrder(SortOrder::NONE);
       }
       break;
       case NodeType::RECENTLY_ADDED_MUSICVIDEOS:
@@ -319,7 +320,7 @@ CGUIViewStateWindowVideoNav::CGUIViewStateWindowVideoNav(const CFileItemList& it
 
         SetViewAsControl(CViewStateSettings::GetInstance().Get("videonavmusicvideos")->m_viewMode);
 
-        SetSortOrder(SortOrderNone);
+        SetSortOrder(SortOrder::NONE);
       }
       break;
       case NodeType::MOVIE_ASSETS:
@@ -493,7 +494,7 @@ CGUIViewStateWindowVideoPlaylist::CGUIViewStateWindowVideoPlaylist(const CFileIt
 
   SetViewAsControl(DEFAULT_VIEW_LIST);
 
-  SetSortOrder(SortOrderNone);
+  SetSortOrder(SortOrder::NONE);
 
   LoadViewState(items.GetPath(), WINDOW_VIDEO_PLAYLIST);
 }

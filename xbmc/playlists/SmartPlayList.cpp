@@ -14,7 +14,8 @@
 #include "dbwrappers/Database.h"
 #include "filesystem/File.h"
 #include "filesystem/SmartPlaylistDirectory.h"
-#include "guilib/LocalizeStrings.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "utils/DatabaseUtils.h"
@@ -34,8 +35,11 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
+using enum CDatabaseQueryRule::FieldType;
+using enum CDatabaseQueryRule::SearchOperator;
 using namespace XFILE;
 
 namespace KODI::PLAYLIST
@@ -45,7 +49,7 @@ typedef struct
 {
   char string[17];
   Field field;
-  CDatabaseQueryRule::FIELD_TYPE type;
+  CDatabaseQueryRule::FieldType type;
   StringValidation::Validator validator;
   bool browseable;
   int localizedString;
@@ -53,92 +57,92 @@ typedef struct
 
 // clang-format off
 static const translateField fields[] = {
-  { "none",              FieldNone,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 231 },
-  { "filename",          FieldFilename,                CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 561 },
-  { "path",              FieldPath,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  573 },
-  { "album",             FieldAlbum,                   CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  558 },
-  { "albumartist",       FieldAlbumArtist,             CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  566 },
-  { "artist",            FieldArtist,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  557 },
-  { "tracknumber",       FieldTrackNumber,             CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 554 },
-  { "role",              FieldRole,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true, 38033 },
-  { "comment",           FieldComment,                 CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 569 },
-  { "review",            FieldReview,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 183 },
-  { "themes",            FieldThemes,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21895 },
-  { "moods",             FieldMoods,                   CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 175 },
-  { "styles",            FieldStyles,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 176 },
-  { "type",              FieldAlbumType,               CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 564 },
-  { "compilation",       FieldCompilation,             CDatabaseQueryRule::BOOLEAN_FIELD,  NULL,                                 false, 204 },
-  { "label",             FieldMusicLabel,              CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21899 },
-  { "title",             FieldTitle,                   CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  556 },
-  { "sorttitle",         FieldSortTitle,               CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 171 },
-  { "originaltitle",     FieldOriginalTitle,           CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 20376 },
-  { "year",              FieldYear,                    CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  true,  562 },
-  { "time",              FieldTime,                    CDatabaseQueryRule::SECONDS_FIELD,  StringValidation::IsTime,             false, 180 },
-  { "playcount",         FieldPlaycount,               CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 567 },
-  { "lastplayed",        FieldLastPlayed,              CDatabaseQueryRule::DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 568 },
-  { "inprogress",        FieldInProgress,              CDatabaseQueryRule::BOOLEAN_FIELD,  NULL,                                 false, 575 },
-  { "rating",            FieldRating,                  CDatabaseQueryRule::REAL_FIELD,     CSmartPlaylistRule::ValidateRating,   false, 563 },
-  { "userrating",        FieldUserRating,              CDatabaseQueryRule::REAL_FIELD,     CSmartPlaylistRule::ValidateMyRating, false, 38018 },
-  { "votes",             FieldVotes,                   CDatabaseQueryRule::REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 205 },
-  { "top250",            FieldTop250,                  CDatabaseQueryRule::NUMERIC_FIELD,  NULL,                                 false, 13409 },
-  { "mpaarating",        FieldMPAA,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 20074 },
-  { "dateadded",         FieldDateAdded,               CDatabaseQueryRule::DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 570 },
-  { "datemodified",      FieldDateModified,            CDatabaseQueryRule::DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 39119 },
-  { "datenew",           FieldDateNew,                 CDatabaseQueryRule::DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 21877 },
-  { "genre",             FieldGenre,                   CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  515 },
-  { "plot",              FieldPlot,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 207 },
-  { "plotoutline",       FieldPlotOutline,             CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 203 },
-  { "tagline",           FieldTagline,                 CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 202 },
-  { "set",               FieldSet,                     CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  20457 },
-  { "director",          FieldDirector,                CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  20339 },
-  { "actor",             FieldActor,                   CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  20337 },
-  { "writers",           FieldWriter,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  20417 },
-  { "airdate",           FieldAirDate,                 CDatabaseQueryRule::DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 20416 },
-  { "hastrailer",        FieldTrailer,                 CDatabaseQueryRule::BOOLEAN_FIELD,  NULL,                                 false, 20423 },
-  { "studio",            FieldStudio,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  572 },
-  { "country",           FieldCountry,                 CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  574 },
-  { "tvshow",            FieldTvShowTitle,             CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  20364 },
-  { "status",            FieldTvShowStatus,            CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 126 },
-  { "season",            FieldSeason,                  CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 20373 },
-  { "episode",           FieldEpisodeNumber,           CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 20359 },
-  { "numepisodes",       FieldNumberOfEpisodes,        CDatabaseQueryRule::REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 20360 },
-  { "numwatched",        FieldNumberOfWatchedEpisodes, CDatabaseQueryRule::REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 21457 },
-  { "videoresolution",   FieldVideoResolution,         CDatabaseQueryRule::REAL_FIELD,     NULL,                                 false, 21443 },
-  { "videocodec",        FieldVideoCodec,              CDatabaseQueryRule::TEXTIN_FIELD,   NULL,                                 false, 21445 },
-  { "videoaspect",       FieldVideoAspectRatio,        CDatabaseQueryRule::REAL_FIELD,     NULL,                                 false, 21374 },
-  { "audiochannels",     FieldAudioChannels,           CDatabaseQueryRule::REAL_FIELD,     NULL,                                 false, 21444 },
-  { "audiocodec",        FieldAudioCodec,              CDatabaseQueryRule::TEXTIN_FIELD,   NULL,                                 false, 21446 },
-  { "audiolanguage",     FieldAudioLanguage,           CDatabaseQueryRule::TEXTIN_FIELD,   NULL,                                 false, 21447 },
-  { "audiocount",        FieldAudioCount,              CDatabaseQueryRule::REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 21481 },
-  { "subtitlecount",     FieldSubtitleCount,           CDatabaseQueryRule::REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 21482 },
-  { "subtitlelanguage",  FieldSubtitleLanguage,        CDatabaseQueryRule::TEXTIN_FIELD,   NULL,                                 false, 21448 },
-  { "random",            FieldRandom,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 590 },
-  { "playlist",          FieldPlaylist,                CDatabaseQueryRule::PLAYLIST_FIELD, NULL,                                 true,  559 },
-  { "virtualfolder",     FieldVirtualFolder,           CDatabaseQueryRule::PLAYLIST_FIELD, NULL,                                 true,  614 },
-  { "tag",               FieldTag,                     CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  20459 },
-  { "instruments",       FieldInstruments,             CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21892 },
-  { "biography",         FieldBiography,               CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21887 },
-  { "born",              FieldBorn,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21893 },
-  { "bandformed",        FieldBandFormed,              CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21894 },
-  { "disbanded",         FieldDisbanded,               CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21896 },
-  { "died",              FieldDied,                    CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 21897 },
-  { "artisttype",        FieldArtistType,              CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 564 },
-  { "gender",            FieldGender,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 39025 },
-  { "disambiguation",    FieldDisambiguation,          CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 39026 },
-  { "source",            FieldSource,                  CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 true,  39030 },
-  { "disctitle",         FieldDiscTitle,               CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 38076 },
-  { "isboxset",          FieldIsBoxset,                CDatabaseQueryRule::BOOLEAN_FIELD,  NULL,                                 false, 38074 },
-  { "totaldiscs",        FieldTotalDiscs,              CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 38077 },
-  { "originalyear",      FieldOrigYear,                CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  true,  38078 },
-  { "bpm",               FieldBPM,                     CDatabaseQueryRule::NUMERIC_FIELD,  NULL,                                 false, 38080 },
-  { "samplerate",        FieldSampleRate,              CDatabaseQueryRule::NUMERIC_FIELD,  NULL,                                 false, 613 },
-  { "bitrate",           FieldMusicBitRate,            CDatabaseQueryRule::NUMERIC_FIELD,  NULL,                                 false, 623 },
-  { "channels",          FieldNoOfChannels,            CDatabaseQueryRule::NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 253 },
-  { "albumstatus",       FieldAlbumStatus,             CDatabaseQueryRule::TEXT_FIELD,     NULL,                                 false, 38081 },
-  { "albumduration",     FieldAlbumDuration,           CDatabaseQueryRule::SECONDS_FIELD,  StringValidation::IsTime,             false, 180 },
-  { "hdrtype",           FieldHdrType,                 CDatabaseQueryRule::TEXTIN_FIELD,   NULL,                                 false, 20474 },
-  { "hasversions",       FieldHasVideoVersions,        CDatabaseQueryRule::BOOLEAN_FIELD,  NULL,                                 false, 20475 },
-  { "hasextras",         FieldHasVideoExtras,          CDatabaseQueryRule::BOOLEAN_FIELD,  NULL,                                 false, 20476 },
+  { "none",              FieldNone,                    TEXT_FIELD,     nullptr,                              false, 231 },
+  { "filename",          FieldFilename,                TEXT_FIELD,     nullptr,                              false, 561 },
+  { "path",              FieldPath,                    TEXT_FIELD,     nullptr,                              true,  573 },
+  { "album",             FieldAlbum,                   TEXT_FIELD,     nullptr,                              true,  558 },
+  { "albumartist",       FieldAlbumArtist,             TEXT_FIELD,     nullptr,                              true,  566 },
+  { "artist",            FieldArtist,                  TEXT_FIELD,     nullptr,                              true,  557 },
+  { "tracknumber",       FieldTrackNumber,             NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 554 },
+  { "role",              FieldRole,                    TEXT_FIELD,     nullptr,                              true, 38033 },
+  { "comment",           FieldComment,                 TEXT_FIELD,     nullptr,                              false, 569 },
+  { "review",            FieldReview,                  TEXT_FIELD,     nullptr,                              false, 183 },
+  { "themes",            FieldThemes,                  TEXT_FIELD,     nullptr,                              false, 21895 },
+  { "moods",             FieldMoods,                   TEXT_FIELD,     nullptr,                              false, 175 },
+  { "styles",            FieldStyles,                  TEXT_FIELD,     nullptr,                              false, 176 },
+  { "type",              FieldAlbumType,               TEXT_FIELD,     nullptr,                              false, 564 },
+  { "compilation",       FieldCompilation,             BOOLEAN_FIELD,  nullptr,                              false, 204 },
+  { "label",             FieldMusicLabel,              TEXT_FIELD,     nullptr,                              false, 21899 },
+  { "title",             FieldTitle,                   TEXT_FIELD,     nullptr,                              true,  556 },
+  { "sorttitle",         FieldSortTitle,               TEXT_FIELD,     nullptr,                              false, 171 },
+  { "originaltitle",     FieldOriginalTitle,           TEXT_FIELD,     nullptr,                              false, 20376 },
+  { "year",              FieldYear,                    NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  true,  562 },
+  { "time",              FieldTime,                    SECONDS_FIELD,  StringValidation::IsTime,             false, 180 },
+  { "playcount",         FieldPlaycount,               NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 567 },
+  { "lastplayed",        FieldLastPlayed,              DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 568 },
+  { "inprogress",        FieldInProgress,              BOOLEAN_FIELD,  nullptr,                              false, 575 },
+  { "rating",            FieldRating,                  REAL_FIELD,     CSmartPlaylistRule::ValidateRating,   false, 563 },
+  { "userrating",        FieldUserRating,              REAL_FIELD,     CSmartPlaylistRule::ValidateMyRating, false, 38018 },
+  { "votes",             FieldVotes,                   REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 205 },
+  { "top250",            FieldTop250,                  NUMERIC_FIELD,  nullptr,                              false, 13409 },
+  { "mpaarating",        FieldMPAA,                    TEXT_FIELD,     nullptr,                              false, 20074 },
+  { "dateadded",         FieldDateAdded,               DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 570 },
+  { "datemodified",      FieldDateModified,            DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 39119 },
+  { "datenew",           FieldDateNew,                 DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 21877 },
+  { "genre",             FieldGenre,                   TEXT_FIELD,     nullptr,                              true,  515 },
+  { "plot",              FieldPlot,                    TEXT_FIELD,     nullptr,                              false, 207 },
+  { "plotoutline",       FieldPlotOutline,             TEXT_FIELD,     nullptr,                              false, 203 },
+  { "tagline",           FieldTagline,                 TEXT_FIELD,     nullptr,                              false, 202 },
+  { "set",               FieldSet,                     TEXT_FIELD,     nullptr,                              true,  20457 },
+  { "director",          FieldDirector,                TEXT_FIELD,     nullptr,                              true,  20339 },
+  { "actor",             FieldActor,                   TEXT_FIELD,     nullptr,                              true,  20337 },
+  { "writers",           FieldWriter,                  TEXT_FIELD,     nullptr,                              true,  20417 },
+  { "airdate",           FieldAirDate,                 DATE_FIELD,     CSmartPlaylistRule::ValidateDate,     false, 20416 },
+  { "hastrailer",        FieldTrailer,                 BOOLEAN_FIELD,  nullptr,                              false, 20423 },
+  { "studio",            FieldStudio,                  TEXT_FIELD,     nullptr,                              true,  572 },
+  { "country",           FieldCountry,                 TEXT_FIELD,     nullptr,                              true,  574 },
+  { "tvshow",            FieldTvShowTitle,             TEXT_FIELD,     nullptr,                              true,  20364 },
+  { "status",            FieldTvShowStatus,            TEXT_FIELD,     nullptr,                              false, 126 },
+  { "season",            FieldSeason,                  NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 20373 },
+  { "episode",           FieldEpisodeNumber,           NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 20359 },
+  { "numepisodes",       FieldNumberOfEpisodes,        REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 20360 },
+  { "numwatched",        FieldNumberOfWatchedEpisodes, REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 21457 },
+  { "videoresolution",   FieldVideoResolution,         REAL_FIELD,     nullptr,                              false, 21443 },
+  { "videocodec",        FieldVideoCodec,              TEXTIN_FIELD,   nullptr,                              false, 21445 },
+  { "videoaspect",       FieldVideoAspectRatio,        REAL_FIELD,     nullptr,                              false, 21374 },
+  { "audiochannels",     FieldAudioChannels,           REAL_FIELD,     nullptr,                              false, 21444 },
+  { "audiocodec",        FieldAudioCodec,              TEXTIN_FIELD,   nullptr,                              false, 21446 },
+  { "audiolanguage",     FieldAudioLanguage,           TEXTIN_FIELD,   nullptr,                              false, 21447 },
+  { "audiocount",        FieldAudioCount,              REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 21481 },
+  { "subtitlecount",     FieldSubtitleCount,           REAL_FIELD,     StringValidation::IsPositiveInteger,  false, 21482 },
+  { "subtitlelanguage",  FieldSubtitleLanguage,        TEXTIN_FIELD,   nullptr,                              false, 21448 },
+  { "random",            FieldRandom,                  TEXT_FIELD,     nullptr,                              false, 590 },
+  { "playlist",          FieldPlaylist,                PLAYLIST_FIELD, nullptr,                              true,  559 },
+  { "virtualfolder",     FieldVirtualFolder,           PLAYLIST_FIELD, nullptr,                              true,  614 },
+  { "tag",               FieldTag,                     TEXT_FIELD,     nullptr,                              true,  20459 },
+  { "instruments",       FieldInstruments,             TEXT_FIELD,     nullptr,                              false, 21892 },
+  { "biography",         FieldBiography,               TEXT_FIELD,     nullptr,                              false, 21887 },
+  { "born",              FieldBorn,                    TEXT_FIELD,     nullptr,                              false, 21893 },
+  { "bandformed",        FieldBandFormed,              TEXT_FIELD,     nullptr,                              false, 21894 },
+  { "disbanded",         FieldDisbanded,               TEXT_FIELD,     nullptr,                              false, 21896 },
+  { "died",              FieldDied,                    TEXT_FIELD,     nullptr,                              false, 21897 },
+  { "artisttype",        FieldArtistType,              TEXT_FIELD,     nullptr,                              false, 564 },
+  { "gender",            FieldGender,                  TEXT_FIELD,     nullptr,                              false, 39025 },
+  { "disambiguation",    FieldDisambiguation,          TEXT_FIELD,     nullptr,                              false, 39026 },
+  { "source",            FieldSource,                  TEXT_FIELD,     nullptr,                              true,  39030 },
+  { "disctitle",         FieldDiscTitle,               TEXT_FIELD,     nullptr,                              false, 38076 },
+  { "isboxset",          FieldIsBoxset,                BOOLEAN_FIELD,  nullptr,                              false, 38074 },
+  { "totaldiscs",        FieldTotalDiscs,              NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 38077 },
+  { "originalyear",      FieldOrigYear,                NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  true,  38078 },
+  { "bpm",               FieldBPM,                     NUMERIC_FIELD,  nullptr,                              false, 38080 },
+  { "samplerate",        FieldSampleRate,              NUMERIC_FIELD,  nullptr,                              false, 613 },
+  { "bitrate",           FieldMusicBitRate,            NUMERIC_FIELD,  nullptr,                              false, 623 },
+  { "channels",          FieldNoOfChannels,            NUMERIC_FIELD,  StringValidation::IsPositiveInteger,  false, 253 },
+  { "albumstatus",       FieldAlbumStatus,             TEXT_FIELD,     nullptr,                              false, 38081 },
+  { "albumduration",     FieldAlbumDuration,           SECONDS_FIELD,  StringValidation::IsTime,             false, 180 },
+  { "hdrtype",           FieldHdrType,                 TEXTIN_FIELD,   nullptr,                              false, 20474 },
+  { "hasversions",       FieldHasVideoVersions,        BOOLEAN_FIELD,  nullptr,                              false, 20475 },
+  { "hasextras",         FieldHasVideoExtras,          BOOLEAN_FIELD,  nullptr,                              false, 20476 },
 };
 // clang-format on
 
@@ -225,11 +229,12 @@ std::string CSmartPlaylistRule::TranslateGroup(Field group)
 std::string CSmartPlaylistRule::GetLocalizedField(int field)
 {
   for (const translateField& f : fields)
-    if (field == f.field) return g_localizeStrings.Get(f.localizedString);
-  return g_localizeStrings.Get(16018);
+    if (field == f.field)
+      return CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(f.localizedString);
+  return CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(16018);
 }
 
-CDatabaseQueryRule::FIELD_TYPE CSmartPlaylistRule::GetFieldType(int field) const
+CDatabaseQueryRule::FieldType CSmartPlaylistRule::GetFieldType(int field) const
 {
   for (const translateField& f : fields)
     if (field == f.field) return f.type;
@@ -270,8 +275,8 @@ bool CSmartPlaylistRule::Validate(const std::string &input, void *data)
   // Split the input into multiple values and validate every value separately
   const std::vector<std::string> values{StringUtils::Split(input, RULE_VALUE_SEPARATOR)};
 
-  return (std::all_of(values.begin(), values.end(),
-                      [data, validator](const auto& s) { return validator(s, data); }));
+  return (
+      std::ranges::all_of(values, [data, validator](const auto& s) { return validator(s, data); }));
 }
 
 bool CSmartPlaylistRule::ValidateRating(const std::string &input, void *data)
@@ -316,11 +321,10 @@ bool CSmartPlaylistRule::ValidateDate(const std::string& input, void* data)
   if (!data)
     return false;
 
-  CSmartPlaylistRule* rule = static_cast<CSmartPlaylistRule*>(data);
+  const auto* rule = static_cast<CSmartPlaylistRule*>(data);
 
   //! @todo implement a validation for relative dates
-  if (rule->m_operator == CDatabaseQueryRule::OPERATOR_IN_THE_LAST ||
-      rule->m_operator == CDatabaseQueryRule::OPERATOR_NOT_IN_THE_LAST)
+  if (rule->m_operator == OPERATOR_IN_THE_LAST || rule->m_operator == OPERATOR_NOT_IN_THE_LAST)
     return true;
 
   // The date format must be YYYY-MM-DD
@@ -458,6 +462,7 @@ std::vector<Field> CSmartPlaylistRule::GetFields(const std::string &type)
     fields.push_back(FieldTitle);
     fields.push_back(FieldOriginalTitle);
     fields.push_back(FieldPlot);
+    fields.push_back(FieldTagline);
     fields.push_back(FieldTvShowStatus);
     fields.push_back(FieldVotes);
     fields.push_back(FieldRating);
@@ -780,10 +785,11 @@ std::string CSmartPlaylistRule::GetLocalizedGroup(Field group)
   for (const auto & i : groups)
   {
     if (group == i.field)
-      return g_localizeStrings.Get(i.localizedString);
+      return CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(i.localizedString);
   }
 
-  return g_localizeStrings.Get(groups[0].localizedString);
+  return CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(
+      groups[0].localizedString);
 }
 
 bool CSmartPlaylistRule::CanGroupMix(Field group)
@@ -879,9 +885,9 @@ std::string CSmartPlaylistRule::GetBooleanQuery(const std::string &negate, const
   return "";
 }
 
-CDatabaseQueryRule::SEARCH_OPERATOR CSmartPlaylistRule::GetOperator(const std::string &strType) const
+CDatabaseQueryRule::SearchOperator CSmartPlaylistRule::GetOperator(const std::string& strType) const
 {
-  SEARCH_OPERATOR op = CDatabaseQueryRule::GetOperator(strType);
+  SearchOperator op = CDatabaseQueryRule::GetOperator(strType);
   if ((strType == "tvshows" || strType == "episodes") && m_field == FieldYear)
   { // special case for premiered which is a date rather than a year
     //! @todo SMARTPLAYLISTS do we really need this, or should we just make this field the premiered date and request a date?
@@ -933,6 +939,31 @@ std::string CSmartPlaylistRule::FormatYearQuery(const std::string& field,
   return query;
 }
 
+namespace
+{
+std::string FormatNullableDate(const std::string& field,
+                               CDatabaseQueryRule::SearchOperator oper,
+                               const std::string& parameter)
+{
+  if (oper == OPERATOR_LESS_THAN || oper == OPERATOR_BEFORE || oper == OPERATOR_NOT_IN_THE_LAST)
+    return field + " IS NULL OR " + field + parameter;
+  else
+    return field + " IS NOT NULL AND " + field + parameter;
+}
+
+std::string FormatNullableNumber(const std::string& field,
+                                 CDatabaseQueryRule::SearchOperator oper,
+                                 std::string_view param,
+                                 const std::string& parameter)
+{
+  if ((oper == OPERATOR_EQUALS && param == "0") ||
+      (oper == OPERATOR_DOES_NOT_EQUAL && param != "0") || (oper == OPERATOR_LESS_THAN))
+    return field + " IS NULL OR " + field + parameter;
+  else
+    return field + " IS NOT NULL AND " + field + parameter;
+}
+} // namespace
+
 std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, const std::string &oper, const std::string &param,
                                                  const CDatabase &db, const std::string &strType) const
 {
@@ -950,8 +981,8 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
       query = negate + " EXISTS (SELECT 1 FROM song_artist, artist WHERE song_artist.idSong = " + GetField(FieldId, strType) + " AND song_artist.idArtist = artist.idArtist AND artist.strArtist" + parameter + ")";
     else if (m_field == FieldAlbumArtist)
       query = negate + " EXISTS (SELECT 1 FROM album_artist, artist WHERE album_artist.idAlbum = " + table + ".idAlbum AND album_artist.idArtist = artist.idArtist AND artist.strArtist" + parameter + ")";
-    else if (m_field == FieldLastPlayed && (m_operator == OPERATOR_LESS_THAN || m_operator == OPERATOR_BEFORE || m_operator == OPERATOR_NOT_IN_THE_LAST))
-      query = GetField(m_field, strType) + " is NULL or " + GetField(m_field, strType) + parameter;
+    else if (m_field == FieldLastPlayed)
+      query = FormatNullableDate(GetField(m_field, strType), m_operator, parameter);
     else if (m_field == FieldSource)
       query = negate + " EXISTS (SELECT 1 FROM album_source, source WHERE album_source.idAlbum = " + table + ".idAlbum AND album_source.idSource = source.idSource AND source.strName" + parameter + ")";
     else if (m_field == FieldYear || m_field == FieldOrigYear)
@@ -977,8 +1008,8 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
       query = negate + " EXISTS (SELECT 1 FROM album_artist, artist WHERE album_artist.idAlbum = " + GetField(FieldId, strType) + " AND album_artist.idArtist = artist.idArtist AND artist.strArtist" + parameter + ")";
     else if (m_field == FieldPath)
       query = negate + " EXISTS (SELECT 1 FROM song JOIN path on song.idpath = path.idpath WHERE song.idAlbum = " + GetField(FieldId, strType) + " AND path.strPath" + parameter + ")";
-    else if (m_field == FieldLastPlayed && (m_operator == OPERATOR_LESS_THAN || m_operator == OPERATOR_BEFORE || m_operator == OPERATOR_NOT_IN_THE_LAST))
-      query = GetField(m_field, strType) + " is NULL or " + GetField(m_field, strType) + parameter;
+    else if (m_field == FieldLastPlayed)
+      query = FormatNullableDate(GetField(m_field, strType), m_operator, parameter);
     else if (m_field == FieldSource)
       query = negate + " EXISTS (SELECT 1 FROM album_source, source WHERE album_source.idAlbum = " + GetField(FieldId, strType) + " AND album_source.idSource = source.idSource AND source.strName" + parameter + ")";
     else if (m_field == FieldDiscTitle)
@@ -1038,8 +1069,8 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
       query = negate + FormatLinkQuery("studio", "studio", MediaTypeMovie, GetField(FieldId, strType), parameter);
     else if (m_field == FieldCountry)
       query = negate + FormatLinkQuery("country", "country", MediaTypeMovie, GetField(FieldId, strType), parameter);
-    else if ((m_field == FieldLastPlayed || m_field == FieldDateAdded) && (m_operator == OPERATOR_LESS_THAN || m_operator == OPERATOR_BEFORE || m_operator == OPERATOR_NOT_IN_THE_LAST))
-      query = GetField(m_field, strType) + " IS NULL OR " + GetField(m_field, strType) + parameter;
+    else if (m_field == FieldLastPlayed || m_field == FieldDateAdded)
+      query = FormatNullableDate(GetField(m_field, strType), m_operator, parameter);
     else if (m_field == FieldTag)
       query = negate + FormatLinkQuery("tag", "tag", MediaTypeMovie, GetField(FieldId, strType), parameter);
   }
@@ -1055,8 +1086,8 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
       query = negate + FormatLinkQuery("studio", "studio", MediaTypeMusicVideo, GetField(FieldId, strType), parameter);
     else if (m_field == FieldDirector)
       query = negate + FormatLinkQuery("director", "actor", MediaTypeMusicVideo, GetField(FieldId, strType), parameter);
-    else if ((m_field == FieldLastPlayed || m_field == FieldDateAdded) && (m_operator == OPERATOR_LESS_THAN || m_operator == OPERATOR_BEFORE || m_operator == OPERATOR_NOT_IN_THE_LAST))
-      query = GetField(m_field, strType) + " IS NULL OR " + GetField(m_field, strType) + parameter;
+    else if (m_field == FieldLastPlayed || m_field == FieldDateAdded)
+      query = FormatNullableDate(GetField(m_field, strType), m_operator, parameter);
     else if (m_field == FieldTag)
       query = negate + FormatLinkQuery("tag", "tag", MediaTypeMusicVideo, GetField(FieldId, strType), parameter);
   }
@@ -1074,8 +1105,8 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
       query = negate + FormatLinkQuery("studio", "studio", MediaTypeTvShow, GetField(FieldId, strType), parameter);
     else if (m_field == FieldMPAA)
       query = negate + " (" + GetField(m_field, strType) + parameter + ")";
-    else if ((m_field == FieldLastPlayed || m_field == FieldDateAdded) && (m_operator == OPERATOR_LESS_THAN || m_operator == OPERATOR_BEFORE || m_operator == OPERATOR_NOT_IN_THE_LAST))
-      query = GetField(m_field, strType) + " IS NULL OR " + GetField(m_field, strType) + parameter;
+    else if (m_field == FieldLastPlayed || m_field == FieldDateAdded)
+      query = FormatNullableDate(GetField(m_field, strType), m_operator, parameter);
     else if (m_field == FieldPlaycount)
       query = "CASE WHEN COALESCE(" + GetField(FieldNumberOfEpisodes, strType) + " - " + GetField(FieldNumberOfWatchedEpisodes, strType) + ", 0) > 0 THEN 0 ELSE 1 END " + parameter;
     else if (m_field == FieldTag)
@@ -1095,8 +1126,8 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
       query = negate + FormatLinkQuery("actor", "actor", MediaTypeEpisode, GetField(FieldId, strType), parameter);
     else if (m_field == FieldWriter)
       query = negate + FormatLinkQuery("writer", "actor", MediaTypeEpisode, GetField(FieldId, strType), parameter);
-    else if ((m_field == FieldLastPlayed || m_field == FieldDateAdded) && (m_operator == OPERATOR_LESS_THAN || m_operator == OPERATOR_BEFORE || m_operator == OPERATOR_NOT_IN_THE_LAST))
-      query = GetField(m_field, strType) + " IS NULL OR " + GetField(m_field, strType) + parameter;
+    else if (m_field == FieldLastPlayed || m_field == FieldDateAdded)
+      query = FormatNullableDate(GetField(m_field, strType), m_operator, parameter);
     else if (m_field == FieldStudio)
       query = negate + FormatLinkQuery("studio", "studio", MediaTypeTvShow, (table + ".idShow").c_str(), parameter);
     else if (m_field == FieldMPAA)
@@ -1122,58 +1153,61 @@ std::string CSmartPlaylistRule::FormatWhereClause(const std::string &negate, con
     query = db.PrepareSQL(negate + " EXISTS (SELECT 1 FROM streamdetails WHERE streamdetails.idFile = " + table + ".idFile AND streamdetails.iStreamType = %i GROUP BY streamdetails.idFile HAVING COUNT(streamdetails.iStreamType) " + parameter + ")",CStreamDetail::SUBTITLE);
   else if (m_field == FieldHdrType)
     query = negate + " EXISTS (SELECT 1 FROM streamdetails WHERE streamdetails.idFile = " + table + ".idFile AND strHdrType " + parameter + ")";
-  if (m_field == FieldPlaycount && strType != "songs" && strType != "albums" && strType != "tvshows")
-  { // playcount IS stored as NULL OR number IN video db
-    if ((m_operator == OPERATOR_EQUALS && param == "0") ||
-        (m_operator == OPERATOR_DOES_NOT_EQUAL && param != "0") ||
-        (m_operator == OPERATOR_LESS_THAN))
-    {
-      std::string field = GetField(FieldPlaycount, strType);
-      query = field + " IS NULL OR " + field + parameter;
-    }
-  }
+
+  if ((m_field == FieldPlaycount && strType != "songs" && strType != "albums" &&
+       strType != "tvshows") ||
+      m_field == FieldUserRating)
+    query = FormatNullableNumber(GetField(m_field, strType), m_operator, param, parameter);
+
   if (query.empty())
     query = CDatabaseQueryRule::FormatWhereClause(negate, oper, param, db, strType);
+
   return query;
 }
 
 std::string CSmartPlaylistRule::GetField(int field, const std::string &type) const
 {
   if (field >= FieldUnknown && field < FieldMax)
-    return DatabaseUtils::GetField((Field)field, CMediaTypes::FromString(type), DatabaseQueryPartWhere);
+    return DatabaseUtils::GetField(static_cast<Field>(field), CMediaTypes::FromString(type),
+                                   DatabaseQueryPart::WHERE);
   return "";
 }
 
-std::string CSmartPlaylistRuleCombination::GetWhereClause(const CDatabase &db, const std::string& strType, std::set<std::string> &referencedPlaylists) const
+std::string CSmartPlaylistRuleCombination::GetWhereClause(
+    const CDatabase& db,
+    const std::string& strType,
+    std::set<std::string, std::less<>>& referencedPlaylists) const
 {
   std::string rule;
 
   // translate the combinations into SQL
-  for (CDatabaseQueryRuleCombinations::const_iterator it = m_combinations.begin(); it != m_combinations.end(); ++it)
+  const CDatabaseQueryRuleCombinations& combinations = GetCombinations();
+  for (auto it = combinations.cbegin(); it != combinations.cend(); ++it)
   {
-    if (it != m_combinations.begin())
-      rule += m_type == CombinationAnd ? " AND " : " OR ";
+    if (it != combinations.cbegin())
+      rule += GetType() == CDatabaseQueryRuleCombination::Type::COMBINATION_AND ? " AND " : " OR ";
     std::shared_ptr<CSmartPlaylistRuleCombination> combo = std::static_pointer_cast<CSmartPlaylistRuleCombination>(*it);
     if (combo)
       rule += "(" + combo->GetWhereClause(db, strType, referencedPlaylists) + ")";
   }
 
   // translate the rules into SQL
-  for (CDatabaseQueryRules::const_iterator it = m_rules.begin(); it != m_rules.end(); ++it)
+  for (const auto& r : GetRules())
   {
     // don't include playlists that are meant to be displayed
     // as a virtual folders in the SQL WHERE clause
-    if ((*it)->m_field == FieldVirtualFolder)
+    if (r->m_field == FieldVirtualFolder)
       continue;
 
     if (!rule.empty())
-      rule += m_type == CombinationAnd ? " AND " : " OR ";
+      rule += GetType() == CDatabaseQueryRuleCombination::Type::COMBINATION_AND ? " AND " : " OR ";
     rule += "(";
     std::string currentRule;
-    if ((*it)->m_field == FieldPlaylist)
+    if (r->m_field == FieldPlaylist)
     {
-      std::string playlistFile = CSmartPlaylistDirectory::GetPlaylistByName((*it)->m_parameter.at(0), strType);
-      if (!playlistFile.empty() && referencedPlaylists.find(playlistFile) == referencedPlaylists.end())
+      const std::string playlistFile =
+          CSmartPlaylistDirectory::GetPlaylistByName(r->m_parameter.at(0), strType);
+      if (!playlistFile.empty() && !referencedPlaylists.contains(playlistFile))
       {
         referencedPlaylists.insert(playlistFile);
         CSmartPlaylist playlist;
@@ -1188,7 +1222,7 @@ std::string CSmartPlaylistRuleCombination::GetWhereClause(const CDatabase &db, c
           }
           if (playlist.GetType() == strType)
           {
-            if ((*it)->m_operator == CDatabaseQueryRule::OPERATOR_DOES_NOT_EQUAL)
+            if (r->m_operator == OPERATOR_DOES_NOT_EQUAL)
               currentRule = StringUtils::Format("NOT ({})", playlistQuery);
             else
               currentRule = playlistQuery;
@@ -1197,10 +1231,11 @@ std::string CSmartPlaylistRuleCombination::GetWhereClause(const CDatabase &db, c
       }
     }
     else
-      currentRule = (*it)->GetWhereClause(db, strType);
+      currentRule = r->GetWhereClause(db, strType);
     // if we don't get a rule, we add '1' or '0' so the query is still valid and doesn't fail
     if (currentRule.empty())
-      currentRule = m_type == CombinationAnd ? "'1'" : "'0'";
+      currentRule =
+          GetType() == CDatabaseQueryRuleCombination::Type::COMBINATION_AND ? "'1'" : "'0'";
     rule += currentRule;
     rule += ")";
   }
@@ -1210,23 +1245,25 @@ std::string CSmartPlaylistRuleCombination::GetWhereClause(const CDatabase &db, c
 
 void CSmartPlaylistRuleCombination::GetVirtualFolders(const std::string& strType, std::vector<std::string> &virtualFolders) const
 {
-  for (CDatabaseQueryRuleCombinations::const_iterator it = m_combinations.begin(); it != m_combinations.end(); ++it)
+  for (const auto& combination : GetCombinations())
   {
-    std::shared_ptr<CSmartPlaylistRuleCombination> combo = std::static_pointer_cast<CSmartPlaylistRuleCombination>(*it);
+    const auto combo = std::static_pointer_cast<CSmartPlaylistRuleCombination>(combination);
     if (combo)
       combo->GetVirtualFolders(strType, virtualFolders);
   }
 
-  for (CDatabaseQueryRules::const_iterator it = m_rules.begin(); it != m_rules.end(); ++it)
+  for (const auto& r : GetRules())
   {
-    if (((*it)->m_field != FieldVirtualFolder && (*it)->m_field != FieldPlaylist) || (*it)->m_operator != CDatabaseQueryRule::OPERATOR_EQUALS)
+    if ((r->m_field != FieldVirtualFolder && r->m_field != FieldPlaylist) ||
+        r->m_operator != OPERATOR_EQUALS)
       continue;
 
-    std::string playlistFile = CSmartPlaylistDirectory::GetPlaylistByName((*it)->m_parameter.at(0), strType);
+    const std::string playlistFile =
+        CSmartPlaylistDirectory::GetPlaylistByName(r->m_parameter.at(0), strType);
     if (playlistFile.empty())
       continue;
 
-    if ((*it)->m_field == FieldVirtualFolder)
+    if (r->m_field == FieldVirtualFolder)
       virtualFolders.push_back(playlistFile);
     else
     {
@@ -1239,12 +1276,6 @@ void CSmartPlaylistRuleCombination::GetVirtualFolders(const std::string& strType
         playlist.GetVirtualFolders(virtualFolders);
     }
   }
-}
-
-void CSmartPlaylistRuleCombination::AddRule(const CSmartPlaylistRule &rule)
-{
-  std::shared_ptr<CSmartPlaylistRule> ptr(new CSmartPlaylistRule(rule));
-  m_rules.push_back(ptr);
 }
 
 CSmartPlaylist::CSmartPlaylist()
@@ -1392,7 +1423,9 @@ bool CSmartPlaylist::Load(const CVariant &obj)
   {
     const CVariant &order = obj["order"];
     if (order.isMember("direction") && order["direction"].isString())
-      m_orderDirection = StringUtils::EqualsNoCase(order["direction"].asString(), "ascending") ? SortOrderAscending : SortOrderDescending;
+      m_orderDirection = StringUtils::EqualsNoCase(order["direction"].asString(), "ascending")
+                             ? SortOrder::ASCENDING
+                             : SortOrder::DESCENDING;
 
     if (order.isMember("ignorefolders") && obj["ignorefolders"].isBoolean())
       m_orderAttributes = obj["ignorefolders"].asBoolean() ? SortAttributeIgnoreFolders : SortAttributeNone;
@@ -1415,14 +1448,16 @@ bool CSmartPlaylist::LoadFromXML(const TiXmlNode *root, const std::string &encod
 
   std::string tmp;
   if (XMLUtils::GetString(root, "match", tmp))
-    m_ruleCombination.SetType(StringUtils::EqualsNoCase(tmp, "all") ? CSmartPlaylistRuleCombination::CombinationAnd : CSmartPlaylistRuleCombination::CombinationOr);
+    m_ruleCombination.SetType(StringUtils::EqualsNoCase(tmp, "all")
+                                  ? CDatabaseQueryRuleCombination::Type::COMBINATION_AND
+                                  : CDatabaseQueryRuleCombination::Type::COMBINATION_OR);
 
   // now the rules
   const TiXmlNode *ruleNode = root->FirstChild("rule");
   while (ruleNode)
   {
-    CSmartPlaylistRule rule;
-    if (rule.Load(ruleNode, encoding))
+    const auto rule{std::make_shared<CSmartPlaylistRule>()};
+    if (rule->Load(ruleNode, encoding))
       m_ruleCombination.AddRule(rule);
 
     ruleNode = ruleNode->NextSibling("rule");
@@ -1447,7 +1482,8 @@ bool CSmartPlaylist::LoadFromXML(const TiXmlNode *root, const std::string &encod
   {
     const char *direction = order->Attribute("direction");
     if (direction)
-      m_orderDirection = StringUtils::EqualsNoCase(direction, "ascending") ? SortOrderAscending : SortOrderDescending;
+      m_orderDirection = StringUtils::EqualsNoCase(direction, "ascending") ? SortOrder::ASCENDING
+                                                                           : SortOrder::DESCENDING;
 
     const char *ignorefolders = order->Attribute("ignorefolders");
     if (ignorefolders != NULL)
@@ -1486,7 +1522,10 @@ bool CSmartPlaylist::Save(const std::string &path) const
   XMLUtils::SetString(pRoot, "name", m_playlistName);
 
   // add the <match> tag
-  XMLUtils::SetString(pRoot, "match", m_ruleCombination.GetType() == CSmartPlaylistRuleCombination::CombinationAnd ? "all" : "one");
+  XMLUtils::SetString(
+      pRoot, "match",
+      m_ruleCombination.GetType() == CDatabaseQueryRuleCombination::Type::COMBINATION_AND ? "all"
+                                                                                          : "one");
 
   // add <rule> tags
   m_ruleCombination.Save(pRoot);
@@ -1511,7 +1550,8 @@ bool CSmartPlaylist::Save(const std::string &path) const
   {
     TiXmlText order(CSmartPlaylistRule::TranslateOrder(m_orderField).c_str());
     TiXmlElement nodeOrder("order");
-    nodeOrder.SetAttribute("direction", m_orderDirection == SortOrderDescending ? "descending" : "ascending");
+    nodeOrder.SetAttribute("direction",
+                           m_orderDirection == SortOrder::DESCENDING ? "descending" : "ascending");
     if (m_orderAttributes & SortAttributeIgnoreFolders)
       nodeOrder.SetAttribute("ignorefolders", "true");
     nodeOrder.InsertEndChild(order);
@@ -1550,7 +1590,8 @@ bool CSmartPlaylist::Save(CVariant &obj, bool full /* = true */) const
   {
     obj["order"] = CVariant(CVariant::VariantTypeObject);
     obj["order"]["method"] = CSmartPlaylistRule::TranslateOrder(m_orderField);
-    obj["order"]["direction"] = m_orderDirection == SortOrderDescending ? "descending" : "ascending";
+    obj["order"]["direction"] =
+        m_orderDirection == SortOrder::DESCENDING ? "descending" : "ascending";
     obj["order"]["ignorefolders"] = (m_orderAttributes & SortAttributeIgnoreFolders);
   }
 
@@ -1571,7 +1612,7 @@ void CSmartPlaylist::Reset()
   m_ruleCombination.clear();
   m_limit = 0;
   m_orderField = SortByNone;
-  m_orderDirection = SortOrderNone;
+  m_orderDirection = SortOrder::NONE;
   m_orderAttributes = SortAttributeNone;
   m_playlistType = "songs"; // sane default
   m_group.clear();
@@ -1610,7 +1651,8 @@ bool CSmartPlaylist::IsMusicType(const std::string &type)
          type == "songs" || type == "mixed";
 }
 
-std::string CSmartPlaylist::GetWhereClause(const CDatabase &db, std::set<std::string> &referencedPlaylists) const
+std::string CSmartPlaylist::GetWhereClause(
+    const CDatabase& db, std::set<std::string, std::less<>>& referencedPlaylists) const
 {
   return m_ruleCombination.GetWhereClause(db, GetType(), referencedPlaylists);
 }
@@ -1647,7 +1689,7 @@ bool CSmartPlaylist::IsEmpty(bool ignoreSortAndLimit /* = true */) const
 {
   bool empty = m_ruleCombination.empty();
   if (empty && !ignoreSortAndLimit)
-    empty = m_limit <= 0 && m_orderField == SortByNone && m_orderDirection == SortOrderNone;
+    empty = m_limit == 0 && m_orderField == SortByNone && m_orderDirection == SortOrder::NONE;
 
   return empty;
 }

@@ -16,18 +16,19 @@
 #include "addons/RepositoryUpdater.h"
 #include "favourites/FavouritesService.h"
 #include "filesystem/Directory.h"
-#include "guilib/LocalizeStrings.h"
 #include "interfaces/AnnouncementManager.h"
 #include "interfaces/IAnnouncer.h"
+#include "jobs/JobManager.h"
 #include "music/MusicFileItemClassify.h"
 #include "music/MusicThumbLoader.h"
 #include "pictures/PictureThumbLoader.h"
 #include "pvr/PVRManager.h"
 #include "pvr/PVRThumbLoader.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "utils/ExecString.h"
-#include "utils/JobManager.h"
 #include "utils/PlayerUtils.h"
 #include "utils/SortUtils.h"
 #include "utils/StringUtils.h"
@@ -120,33 +121,29 @@ public:
   explicit CAddonsSubscriber(ISubscriberCallback& invalidate)
     : CDirectoryProvider::CSubscriber(invalidate)
   {
-    CServiceBroker::GetAddonMgr().Events().Subscribe(this, &CAddonsSubscriber::OnAddonEvent);
+    CServiceBroker::GetAddonMgr().Events().Subscribe(
+        this,
+        [this](const ADDON::AddonEvent& event)
+        {
+          if (typeid(event) == typeid(ADDON::AddonEvents::Enabled) ||
+              typeid(event) == typeid(ADDON::AddonEvents::Disabled) ||
+              typeid(event) == typeid(ADDON::AddonEvents::ReInstalled) ||
+              typeid(event) == typeid(ADDON::AddonEvents::UnInstalled) ||
+              typeid(event) == typeid(ADDON::AddonEvents::MetadataChanged) ||
+              typeid(event) == typeid(ADDON::AddonEvents::AutoUpdateStateChanged))
+          {
+            OnEventPublished();
+          }
+        });
+
     CServiceBroker::GetRepositoryUpdater().Events().Subscribe(
-        this, &CAddonsSubscriber::OnAddonRepositoryEvent);
+        this, [this](const ADDON::CRepositoryUpdater::RepositoryUpdated& /*event*/)
+        { OnEventPublished(); });
   }
   ~CAddonsSubscriber() override
   {
     CServiceBroker::GetRepositoryUpdater().Events().Unsubscribe(this);
     CServiceBroker::GetAddonMgr().Events().Unsubscribe(this);
-  }
-
-private:
-  void OnAddonEvent(const ADDON::AddonEvent& event)
-  {
-    if (typeid(event) == typeid(ADDON::AddonEvents::Enabled) ||
-        typeid(event) == typeid(ADDON::AddonEvents::Disabled) ||
-        typeid(event) == typeid(ADDON::AddonEvents::ReInstalled) ||
-        typeid(event) == typeid(ADDON::AddonEvents::UnInstalled) ||
-        typeid(event) == typeid(ADDON::AddonEvents::MetadataChanged) ||
-        typeid(event) == typeid(ADDON::AddonEvents::AutoUpdateStateChanged))
-    {
-      OnEventPublished();
-    }
-  }
-
-  void OnAddonRepositoryEvent(const ADDON::CRepositoryUpdater::RepositoryUpdated& event)
-  {
-    OnEventPublished();
   }
 };
 
@@ -156,7 +153,29 @@ public:
   explicit CPVRSubscriber(ISubscriberCallback& invalidate)
     : CDirectoryProvider::CSubscriber(invalidate)
   {
-    CServiceBroker::GetPVRManager().Events().Subscribe(this, &CPVRSubscriber::OnPVRManagerEvent);
+    CServiceBroker::GetPVRManager().Events().Subscribe(
+        this,
+        [this](const PVR::PVREvent& event)
+        {
+          if (event == PVR::PVREvent::ManagerStarted)
+            m_pvrStarted.test_and_set();
+          else if (event == PVR::PVREvent::ManagerStarting ||
+                   event == PVR::PVREvent::ManagerStopping ||
+                   event == PVR::PVREvent::ManagerStopped)
+            m_pvrStarted.clear();
+
+          if (!m_pvrStarted.test())
+            return;
+
+          using enum PVR::PVREvent;
+          if (event == ManagerStarted || event == ManagerStopped ||
+              event == RecordingsInvalidated || event == TimersInvalidated ||
+              event == ChannelGroupsInvalidated || event == SavedSearchesInvalidated ||
+              event == ClientsInvalidated || event == ClientsPrioritiesInvalidated)
+          {
+            OnEventPublished();
+          }
+        });
 
     if (CServiceBroker::GetPVRManager().IsStarted())
       m_pvrStarted.test_and_set();
@@ -166,27 +185,6 @@ public:
   bool IsReadyToUse() const override { return m_pvrStarted.test(); }
 
 private:
-  void OnPVRManagerEvent(const PVR::PVREvent& event)
-  {
-    if (event == PVR::PVREvent::ManagerStarted)
-      m_pvrStarted.test_and_set();
-    else if (event == PVR::PVREvent::ManagerStarting || event == PVR::PVREvent::ManagerStopping ||
-             event == PVR::PVREvent::ManagerStopped)
-      m_pvrStarted.clear();
-
-    if (!m_pvrStarted.test())
-      return;
-
-    using enum PVR::PVREvent;
-    if (event == ManagerStarted || event == ManagerStopped || event == RecordingsInvalidated ||
-        event == TimersInvalidated || event == ChannelGroupsInvalidated ||
-        event == SavedSearchesInvalidated || event == ClientsInvalidated ||
-        event == ClientsPrioritiesInvalidated)
-    {
-      OnEventPublished();
-    }
-  }
-
   std::atomic_flag m_pvrStarted{};
 };
 
@@ -197,15 +195,13 @@ public:
     : CDirectoryProvider::CSubscriber(invalidate)
   {
     CServiceBroker::GetFavouritesService().Events().Subscribe(
-        this, &CFavouritesSubscriber::OnFavouritesEvent);
+        this,
+        [this](const CFavouritesService::FavouritesUpdated& /*event*/) { OnEventPublished(); });
   }
   ~CFavouritesSubscriber() override
   {
     CServiceBroker::GetFavouritesService().Events().Unsubscribe(this);
   }
-
-private:
-  void OnFavouritesEvent(const CFavouritesService::FavouritesUpdated& event) { OnEventPublished(); }
 };
 
 std::unique_ptr<CDirectoryProvider::CSubscriber> GetSubscriber(const std::string& url,
@@ -241,7 +237,7 @@ public:
   ~CDirectoryJob() override = default;
 
   const char* GetType() const override { return "directory"; }
-  bool operator==(const CJob* job) const override
+  bool Equals(const CJob* job) const override
   {
     if (strcmp(job->GetType(), GetType()) == 0)
     {
@@ -290,7 +286,8 @@ public:
         if (!m_target.empty())
         {
           CFileItem item(m_url, true);
-          item.SetLabel(g_localizeStrings.Get(22082)); // More...
+          item.SetLabel(
+              CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(22082)); // More...
           item.SetArt("icon", "DefaultFolder.png");
           item.SetProperty("node.target", m_target);
           item.SetProperty("node.type", "target_folder"); // make item identifiable, e.g. by skins
@@ -366,7 +363,8 @@ private:
 } // unnamed namespace
 
 CDirectoryProvider::CDirectoryProvider(const TiXmlElement* element, int parentID)
-  : IListProvider(parentID), m_nextJobTimer(this)
+  : IListProvider(parentID),
+    m_nextJobTimer(this)
 {
   assert(element);
   if (!element->NoChildren())
@@ -517,7 +515,7 @@ void CDirectoryProvider::Reset()
     m_currentUrl.clear();
     m_itemTypes.clear();
     m_currentSort.sortBy = SortByNone;
-    m_currentSort.sortOrder = SortOrderAscending;
+    m_currentSort.sortOrder = SortOrder::ASCENDING;
     m_currentLimit = 0;
     m_currentBrowse = BrowseMode::AUTO;
     m_updateState = UpdateState::OK;
@@ -541,7 +539,21 @@ void CDirectoryProvider::OnJobComplete(unsigned int jobID, bool success, CJob* j
   std::unique_lock lock(m_section);
   if (success)
   {
-    m_items = static_cast<CDirectoryJob*>(job)->GetItems();
+    if (job->GetPendingCallbackCount() > 1)
+    {
+      // Deep copy items since other callbacks will also receive this job's results,
+      // and each container needs independent visibility state and layout
+      const auto& sourceItems = static_cast<CDirectoryJob*>(job)->GetItems();
+      m_items.clear();
+      m_items.reserve(sourceItems.size());
+      for (const auto& item : sourceItems)
+        m_items.emplace_back(std::make_shared<CGUIStaticItem>(*item));
+    }
+    else
+    {
+      m_items = static_cast<CDirectoryJob*>(job)->GetItems();
+    }
+
     m_currentTarget = static_cast<CDirectoryJob*>(job)->GetTarget();
     static_cast<CDirectoryJob*>(job)->GetItemTypes(m_itemTypes);
     if (m_updateState == UpdateState::OK)
@@ -637,7 +649,7 @@ bool CDirectoryProvider::OnClick(const std::shared_ptr<CGUIListItem>& item)
   const bool isPlayMedia{exec.GetFunction() == "playmedia"};
 
   // video select action setting is for files only, except exec func is playmedia...
-  if (targetItem->HasVideoInfoTag() && (!targetItem->m_bIsFolder || isPlayMedia))
+  if (targetItem->HasVideoInfoTag() && (!targetItem->IsFolder() || isPlayMedia))
   {
     const std::string targetWindow{GetTarget(*targetItem)};
     if (!targetWindow.empty())
@@ -670,7 +682,7 @@ bool CDirectoryProvider::OnPlay(const std::shared_ptr<CGUIListItem>& item)
 
   // video play action setting is for files and folders...
   if (targetItem->HasVideoInfoTag() ||
-      (targetItem->m_bIsFolder && VIDEO::UTILS::IsItemPlayable(*targetItem)))
+      (targetItem->IsFolder() && VIDEO::UTILS::IsItemPlayable(*targetItem)))
   {
     KODI::VIDEO::GUILIB::CVideoPlayActionProcessor proc{targetItem};
     if (proc.ProcessDefaultAction())
@@ -779,8 +791,8 @@ bool CDirectoryProvider::UpdateSort()
   std::unique_lock lock(m_section);
   SortBy sortMethod(SortUtils::SortMethodFromString(m_sortMethod.GetLabel(GetParentId(), false)));
   SortOrder sortOrder(SortUtils::SortOrderFromString(m_sortOrder.GetLabel(GetParentId(), false)));
-  if (sortOrder == SortOrderNone)
-    sortOrder = SortOrderAscending;
+  if (sortOrder == SortOrder::NONE)
+    sortOrder = SortOrder::ASCENDING;
 
   if (sortMethod == m_currentSort.sortBy && sortOrder == m_currentSort.sortOrder)
     return false;

@@ -18,7 +18,8 @@ class CPVRClientUID final
 {
 public:
   CPVRClientUID(const std::string& addonID, ADDON::AddonInstanceId instanceID)
-    : m_addonID(addonID), m_instanceID(instanceID)
+    : m_addonID(addonID),
+      m_instanceID(instanceID)
   {
   }
 
@@ -33,6 +34,11 @@ public:
    * @return The numeric legacy UID.
    */
   int GetLegacyUID() const;
+
+  /*!
+   * @brief Clear the UID cache.
+   */
+  static void ClearCache();
 
 private:
   CPVRClientUID() = delete;

@@ -18,6 +18,7 @@
 #include "cores/AudioEngine/Utils/AEStreamData.h"
 #include "cores/AudioEngine/Utils/AEStreamInfo.h"
 #include "cores/AudioEngine/Utils/AEUtil.h"
+#include "cores/DataCacheCore.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "utils/log.h"
@@ -35,6 +36,9 @@ namespace
 {
 constexpr float MAX_CACHE_LEVEL = 0.4f; // total cache time of stream in seconds;
 constexpr float MAX_WATER_LEVEL = 0.2f; // buffered time after stream stages in seconds;
+constexpr float MIN_WATER_LEVEL = 0.02f; // min buffer time to prevent underrun
+constexpr float MIN_WATER_LEVEL_RESAMPLE = 0.1f; // min buffer time in resample mode
+constexpr float BUFFER_LEVEL_INCREMENT = 0.0001f; // increment step for ramp-up
 constexpr double MAX_BUFFER_TIME = 0.1; // max time of a buffer in seconds;
 } // unnamed namespace
 
@@ -273,7 +277,7 @@ CActiveAE::CActiveAE() :
   m_vizInitialized = false;
   m_sinkHasVolume = false;
   m_aeGUISoundForce = false;
-  m_stats.Reset(44100, true);
+  m_stats.Reset(48000, true);
   m_streamIdGen = 0;
 
   m_settingsHandler = std::make_unique<CActiveAESettings>(*this);
@@ -372,6 +376,7 @@ void CActiveAE::StateMachine(int signal, Protocol *port, Message *msg)
             par->stream->m_resampleMode = par->parameter.int_par;
             par->stream->m_resampleIntegral = 0.0;
           }
+          ConfigureLowLatency();
           return;
         default:
           break;
@@ -1144,7 +1149,7 @@ AEAudioFormat CActiveAE::GetInputFormat(AEAudioFormat *desiredFmt)
   if (m_streams.empty())
   {
     inputFormat.m_dataFormat    = AE_FMT_FLOAT;
-    inputFormat.m_sampleRate    = 44100;
+    inputFormat.m_sampleRate    = 48000;
     inputFormat.m_channelLayout = AE_CH_LAYOUT_2_0;
     inputFormat.m_frames        = 0;
     inputFormat.m_frameSize     = 0;
@@ -1190,6 +1195,7 @@ void CActiveAE::Configure(AEAudioFormat *desiredFmt)
        !CompareFormat(m_sinkRequestFormat, oldSinkRequestFormat)) ||
       m_currDevice.compare(dev.name) != 0 || m_settings.driver.compare(dev.driver) != 0)
   {
+    CServiceBroker::GetDataCacheCore().ResetAudioCache();
     FlushEngine();
     if (!InitSink())
       return;
@@ -1433,6 +1439,8 @@ void CActiveAE::Configure(AEAudioFormat *desiredFmt)
     m_sinkBuffers->Create(MAX_WATER_LEVEL*1000, true, false);
   }
 
+  ConfigureLowLatency();
+
   // reset gui sounds
   if (!CompareFormat(oldInternalFormat, m_internalFormat))
   {
@@ -1646,6 +1654,44 @@ void CActiveAE::ChangeResamplers()
         m_settings.normalizelevels, m_settings.stereoupmix, m_settings.resampleQuality,
         m_settings.mixSubLevel);
   }
+}
+
+// Configure buffer level ramp-up when low latency mode is enabled
+// Resample OFF --> from ~20ms to ~200ms
+// Resample ON --> from ~100ms to ~200ms
+// Low latency OFF --> constant to ~200ms (no ramp-up)
+// The increment is added to avoid ambiguous float comparisons (0.0199999 instead of 0.020001)
+void CActiveAE::ConfigureLowLatency()
+{
+  bool resample{false};
+
+  if (m_settings.lowLatencyMode)
+  {
+    if (!m_streams.empty())
+    {
+      for (const auto& stream : m_streams)
+      {
+        if (stream->m_streamResampleMode != 0 || stream->m_resampleMode != 0)
+        {
+          resample = true;
+          break;
+        }
+      }
+    }
+    if (resample)
+      m_initialTargetBufferLevel = MIN_WATER_LEVEL_RESAMPLE + BUFFER_LEVEL_INCREMENT;
+    else
+      m_initialTargetBufferLevel = MIN_WATER_LEVEL + BUFFER_LEVEL_INCREMENT;
+  }
+  else
+  {
+    m_initialTargetBufferLevel = MAX_WATER_LEVEL + BUFFER_LEVEL_INCREMENT;
+  }
+
+  m_targetBufferLevel = m_initialTargetBufferLevel;
+
+  CLog::LogF(LOGDEBUG, "Low latency mode: {} - Initial buffer level: {:.0f}ms (resample: {})",
+             m_settings.lowLatencyMode, m_initialTargetBufferLevel * 1000.0f, resample);
 }
 
 void CActiveAE::ApplySettingsToFormat(AEAudioFormat& format,
@@ -1961,12 +2007,28 @@ bool CActiveAE::RunStages()
   const bool isTrueHDPassthrough =
       (m_mode == MODE_RAW && m_sinkFormat.m_streamInfo.m_type == CAEStreamInfo::STREAM_TYPE_TRUEHD);
 
-  if ((m_stats.GetWaterLevel() < (MAX_WATER_LEVEL + 0.0001f) || isTrueHDPassthrough) &&
+  if (m_settings.lowLatencyMode)
+  {
+    // m_targetBufferLevel grows progressively from ~20ms (virtual zero buffer and zero latency)
+    // to ~200 ms (nominal buffer and nominal latency), same as before.
+    // In resample mode is from ~100ms to ~200ms to prevent buffer underrun.
+    if (m_targetBufferLevel < MAX_WATER_LEVEL)
+      m_targetBufferLevel += BUFFER_LEVEL_INCREMENT; // 2000 iterations -> ramp-up of ~10 seconds
+  }
+
+  // The buffer level "GetWaterLevel()" always tries to follow m_targetBufferLevel because when it
+  // is lower, audio samples are added, and when it is higher, audio samples stop being added
+  // and the level goes down.
+  if ((m_stats.GetWaterLevel() < m_targetBufferLevel || isTrueHDPassthrough) &&
       (m_mode != MODE_TRANSCODE || (m_encoderBuffers && !m_encoderBuffers->m_freeSamples.empty())))
   {
     // calculate sync error
     for (it = m_streams.begin(); it != m_streams.end(); ++it)
     {
+      // reset target buffer level at pause (but not initial start pause)
+      if ((*it)->m_paused && (*it)->m_started && m_settings.lowLatencyMode)
+        m_targetBufferLevel = m_initialTargetBufferLevel;
+
       if ((*it)->m_paused || !(*it)->m_started || !(*it)->m_processingBuffers || !(*it)->m_pClock)
         continue;
 
@@ -2670,6 +2732,7 @@ void CActiveAE::LoadSettings()
   m_settings.streamNoise = settings->GetBool(CSettings::SETTING_AUDIOOUTPUT_STREAMNOISE);
   m_settings.silenceTimeoutMinutes = settings->GetInt(CSettings::SETTING_AUDIOOUTPUT_STREAMSILENCE);
   m_settings.mixSubLevel = settings->GetInt(CSettings::SETTING_AUDIOOUTPUT_MIXSUBLEVEL) / 100.0;
+  m_settings.lowLatencyMode = settings->GetBool(CSettings::SETTING_AUDIOOUTPUT_LOWLATENCY);
 }
 
 void CActiveAE::ValidateOutputDevices(bool saveChanges)
@@ -3514,7 +3577,7 @@ void CActiveAE::RegisterAudioCallback(IAudioCallback* pCallback)
 void CActiveAE::UnregisterAudioCallback(IAudioCallback* pCallback)
 {
   std::unique_lock lock(m_vizLock);
-  auto it = std::find(m_audioCallback.begin(), m_audioCallback.end(), pCallback);
+  auto it = std::ranges::find(m_audioCallback, pCallback);
   if (it != m_audioCallback.end())
     m_audioCallback.erase(it);
 }

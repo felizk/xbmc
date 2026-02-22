@@ -24,6 +24,14 @@
 
 struct RESOLUTION_WHR
 {
+  // user-defined ctor required for XCode 15.2 and emplace_back
+  RESOLUTION_WHR(int newWidth,
+                 int newHeight,
+                 int screenWidth,
+                 int screenHeight,
+                 int newflags,
+                 int newIdx,
+                 std::string&& newId);
   int width;
   int height;
   int m_screenWidth;
@@ -67,8 +75,6 @@ public:
   virtual bool DestroyWindow(){ return false; }
   virtual bool ResizeWindow(int newWidth, int newHeight, int newLeft, int newTop) = 0;
   virtual bool SetFullScreen(bool fullScreen, RESOLUTION_INFO& res, bool blankOtherDisplays) = 0;
-  virtual bool DisplayHardwareScalingEnabled() { return false; }
-  virtual void UpdateDisplayHardwareScaling(const RESOLUTION_INFO& resInfo) { }
   virtual void SetDirtyRegions(const CDirtyRegionList& dirtyRegionsList) {}
   virtual int GetBufferAge() { return 2; }
   virtual bool MoveWindow(int topLeft, int topRight){return false;}

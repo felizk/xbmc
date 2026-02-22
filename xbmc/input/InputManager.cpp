@@ -40,13 +40,13 @@
 #include "settings/lib/Setting.h"
 #include "utils/ExecString.h"
 #include "utils/Geometry.h"
+#include "utils/Map.h"
 #include "utils/StringUtils.h"
 #include "utils/log.h"
 
 #include <algorithm>
 #include <math.h>
 #include <mutex>
-#include <unordered_map>
 
 using EVENTSERVER::CEventServer;
 
@@ -56,10 +56,11 @@ const std::string CInputManager::SETTING_INPUT_ENABLE_CONTROLLER = "input.enable
 
 namespace
 {
-const std::unordered_map<uint8_t, int> keyComposeactionEventMap = {
+constexpr auto keyComposeactionEventMap = make_map<uint8_t, int>({
     {XBMC_KEYCOMPOSING_COMPOSING, ACTION_KEYBOARD_COMPOSING_KEY},
     {XBMC_KEYCOMPOSING_CANCELLED, ACTION_KEYBOARD_COMPOSING_KEY_CANCELLED},
-    {XBMC_KEYCOMPOSING_FINISHED, ACTION_KEYBOARD_COMPOSING_KEY_FINISHED}};
+    {XBMC_KEYCOMPOSING_FINISHED, ACTION_KEYBOARD_COMPOSING_KEY_FINISHED},
+});
 }
 
 CInputManager::CInputManager()
@@ -209,7 +210,7 @@ bool CInputManager::ProcessEventServer(int windowId, float frameTime)
 
   if (wKeyID)
   {
-    if (strMapName.length() > 0)
+    if (!strMapName.empty())
     {
       // joysticks are not supported via eventserver
       if (isJoystick)
@@ -935,8 +936,7 @@ std::vector<std::shared_ptr<const KEYMAP::IWindowKeymap>> CInputManager::GetJoys
 
 void CInputManager::RegisterKeyboardDriverHandler(KEYBOARD::IKeyboardDriverHandler* handler)
 {
-  if (std::find(m_keyboardHandlers.begin(), m_keyboardHandlers.end(), handler) ==
-      m_keyboardHandlers.end())
+  if (std::ranges::find(m_keyboardHandlers, handler) == m_keyboardHandlers.end())
     m_keyboardHandlers.insert(m_keyboardHandlers.begin(), handler);
 }
 
@@ -949,7 +949,7 @@ void CInputManager::UnregisterKeyboardDriverHandler(KEYBOARD::IKeyboardDriverHan
 
 void CInputManager::RegisterMouseDriverHandler(MOUSE::IMouseDriverHandler* handler)
 {
-  if (std::find(m_mouseHandlers.begin(), m_mouseHandlers.end(), handler) == m_mouseHandlers.end())
+  if (std::ranges::find(m_mouseHandlers, handler) == m_mouseHandlers.end())
     m_mouseHandlers.insert(m_mouseHandlers.begin(), handler);
 }
 

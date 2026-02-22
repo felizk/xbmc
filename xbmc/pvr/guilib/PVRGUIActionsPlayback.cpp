@@ -17,7 +17,6 @@
 #include "dialogs/GUIDialogYesNo.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/GUIWindowManager.h"
-#include "guilib/LocalizeStrings.h"
 #include "guilib/WindowIDs.h"
 #include "messaging/ApplicationMessenger.h"
 #include "pvr/PVRItem.h"
@@ -34,6 +33,8 @@
 #include "pvr/recordings/PVRRecording.h"
 #include "pvr/recordings/PVRRecordings.h"
 #include "pvr/settings/PVRSettings.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/MediaSettings.h"
 #include "settings/Settings.h"
 #include "utils/StringUtils.h"
@@ -87,7 +88,7 @@ bool CPVRGUIActionsPlayback::PlayRecording(const CFileItem& item) const
     return true;
   }
 
-  if (!item.m_bIsFolder && VIDEO::UTILS::IsAutoPlayNextItem(item))
+  if (!item.IsFolder() && VIDEO::UTILS::IsAutoPlayNextItem(item))
   {
     // recursively add items located in the same folder as item to play list, starting with item
     std::string parentPath{item.GetProperty("ParentPath").asString()};
@@ -106,7 +107,8 @@ bool CPVRGUIActionsPlayback::PlayRecording(const CFileItem& item) const
       parentItem->SetStartOffset(STARTOFFSET_RESUME);
 
     auto queuedItems{std::make_unique<CFileItemList>()};
-    VIDEO::UTILS::GetItemsForPlayList(parentItem, *queuedItems);
+    VIDEO::UTILS::GetItemsForPlayList(parentItem, *queuedItems,
+                                      ContentUtils::PlayMode::CHECK_AUTO_PLAY_NEXT_ITEM);
 
     // figure out where to start playback
     int pos{0};
@@ -157,7 +159,7 @@ bool CPVRGUIActionsPlayback::PlayEpgTag(
 
 bool CPVRGUIActionsPlayback::SwitchToChannel(const CFileItem& item) const
 {
-  if (item.m_bIsFolder)
+  if (item.IsFolder())
     return false;
 
   std::shared_ptr<CPVRRecording> recording;
@@ -245,12 +247,17 @@ bool CPVRGUIActionsPlayback::SwitchToChannel(const CFileItem& item) const
   else if (result == ParentalCheckResult::FAILED)
   {
     const std::string channelName =
-        channel ? channel->ChannelName() : g_localizeStrings.Get(19029); // Channel
-    const std::string msg = StringUtils::Format(g_localizeStrings.Get(19035),
-                                                channelName); // CHANNELNAME could not be played.
+        channel
+            ? channel->ChannelName()
+            : CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19029); // Channel
+    const std::string msg =
+        StringUtils::Format(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19035),
+                            channelName); // CHANNELNAME could not be played.
 
-    CGUIDialogKaiToast::QueueNotification(CGUIDialogKaiToast::Error, g_localizeStrings.Get(19166),
-                                          msg); // PVR information
+    CGUIDialogKaiToast::QueueNotification(
+        CGUIDialogKaiToast::Error,
+        CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19166),
+        msg); // PVR information
   }
 
   return false;
@@ -330,10 +337,10 @@ bool CPVRGUIActionsPlayback::SwitchToChannel(PlaybackType type) const
 
   CGUIDialogKaiToast::QueueNotification(
       CGUIDialogKaiToast::Error,
-      g_localizeStrings.Get(19166), // PVR information
-      StringUtils::Format(
-          g_localizeStrings.Get(19035),
-          g_localizeStrings.Get(bIsRadio ? 19021 : 19020))); // Radio/TV could not be played.
+      CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19166), // PVR information
+      StringUtils::Format(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19035),
+                          CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(
+                              bIsRadio ? 19021 : 19020))); // Radio/TV could not be played.
   return false;
 }
 

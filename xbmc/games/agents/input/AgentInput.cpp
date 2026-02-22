@@ -26,7 +26,8 @@ using namespace KODI;
 using namespace GAME;
 
 CAgentInput::CAgentInput(PERIPHERALS::CPeripherals& peripheralManager, CInputManager& inputManager)
-  : m_peripheralManager(peripheralManager), m_inputManager(inputManager)
+  : m_peripheralManager(peripheralManager),
+    m_inputManager(inputManager)
 {
   // Register callbacks
   m_peripheralManager.RegisterObserver(this);
@@ -183,7 +184,7 @@ std::vector<std::shared_ptr<const CAgentController>> CAgentInput::GetControllers
   std::lock_guard<std::mutex> lock(m_controllerMutex);
 
   std::vector<std::shared_ptr<const CAgentController>> controllers{m_controllers.size()};
-  std::copy(m_controllers.begin(), m_controllers.end(), controllers.begin());
+  std::ranges::copy(m_controllers, controllers.begin());
 
   return controllers;
 }
@@ -374,11 +375,10 @@ void CAgentInput::ProcessKeyboard()
                              { return port.GetPortType() == PORT_TYPE::KEYBOARD; });
 
       // Open keyboard input
-      PERIPHERALS::PeripheralPtr keyboard = std::move(keyboards.at(0));
-      m_gameClient->Input().OpenKeyboard(it->GetActiveController().GetController(), keyboard);
+      m_gameClient->Input().OpenKeyboard(it->GetActiveController().GetController());
 
       // Save keyboard port
-      m_keyboardPort[static_cast<KEYBOARD::IKeyboardInputProvider*>(keyboard.get())] =
+      m_keyboardPort[static_cast<KEYBOARD::IKeyboardInputProvider*>(keyboards.at(0).get())] =
           it->GetAddress();
 
       SetChanged(true);
@@ -409,11 +409,10 @@ void CAgentInput::ProcessMouse()
                              { return port.GetPortType() == PORT_TYPE::MOUSE; });
 
       // Open mouse input
-      PERIPHERALS::PeripheralPtr mouse = std::move(mice.at(0));
-      m_gameClient->Input().OpenMouse(it->GetActiveController().GetController(), mouse);
+      m_gameClient->Input().OpenMouse(it->GetActiveController().GetController());
 
       // Save mouse port
-      m_mousePort[static_cast<MOUSE::IMouseInputProvider*>(mouse.get())] = it->GetAddress();
+      m_mousePort[static_cast<MOUSE::IMouseInputProvider*>(mice.at(0).get())] = it->GetAddress();
 
       SetChanged(true);
     }
@@ -677,7 +676,7 @@ void CAgentInput::UpdateConnectedJoysticks(
     JOYSTICK::IInputProvider* inputProvider = peripheral.get();
 
     // Check if peripheral is disconnected
-    if (m_portMap.find(inputProvider) == m_portMap.end())
+    if (!m_portMap.contains(inputProvider))
       disconnectedPeripherals.emplace(peripheral);
   }
 }
@@ -765,7 +764,7 @@ CAgentInput::PortMap CAgentInput::MapJoysticks(
             const PortAddress& portAddress = itPeripheral->second;
 
             // If port is disconnected, use this joystick
-            if (gameClientjoysticks.find(portAddress) == gameClientjoysticks.end())
+            if (!gameClientjoysticks.contains(portAddress))
               return true;
 
             return false;

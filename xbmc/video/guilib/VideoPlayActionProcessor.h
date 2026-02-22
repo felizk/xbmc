@@ -19,11 +19,7 @@ namespace KODI::VIDEO::GUILIB
 class CVideoPlayActionProcessor : public CVideoActionProcessorBase
 {
 public:
-  explicit CVideoPlayActionProcessor(const std::shared_ptr<CFileItem>& item)
-    : CVideoActionProcessorBase(item)
-  {
-  }
-  virtual ~CVideoPlayActionProcessor() = default;
+  using CVideoActionProcessorBase::CVideoActionProcessorBase;
 
   void SetChoosePlayer() { m_choosePlayer = true; }
   void SetChooseStackPart() { m_chooseStackPart = true; }

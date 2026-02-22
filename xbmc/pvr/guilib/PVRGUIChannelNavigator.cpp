@@ -12,6 +12,9 @@
 #include "GUIInfoManager.h"
 #include "ServiceBroker.h"
 #include "guilib/GUIComponent.h"
+#include "jobs/IJobCallback.h"
+#include "jobs/Job.h"
+#include "jobs/JobManager.h"
 #include "pvr/PVRManager.h"
 #include "pvr/PVRPlaybackState.h"
 #include "pvr/channels/PVRChannelGroup.h"
@@ -19,8 +22,6 @@
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "threads/SystemClock.h"
-#include "utils/Job.h"
-#include "utils/JobManager.h"
 #include "utils/XTimeUtils.h"
 
 #include <memory>
@@ -119,7 +120,14 @@ void CPVRGUIChannelNavigator::SubscribeToShowInfoEventStream()
       .GetInfoProviders()
       .GetPlayerInfoProvider()
       .Events()
-      .Subscribe(this, &CPVRGUIChannelNavigator::Notify);
+      .Subscribe(this,
+                 [this](const PlayerShowInfoChangedEvent& event)
+                 {
+                   std::unique_lock lock(m_critSection);
+
+                   m_playerShowInfo = event.m_showInfo;
+                   CheckAndPublishPreviewAndPlayerShowInfoChangedEvent();
+                 });
 }
 
 void CPVRGUIChannelNavigator::CheckAndPublishPreviewAndPlayerShowInfoChangedEvent()
@@ -134,14 +142,6 @@ void CPVRGUIChannelNavigator::CheckAndPublishPreviewAndPlayerShowInfoChangedEven
     // inform subscribers
     m_events.Publish(PVRPreviewAndPlayerShowInfoChangedEvent(currentValue));
   }
-}
-
-void CPVRGUIChannelNavigator::Notify(const PlayerShowInfoChangedEvent& event)
-{
-  std::unique_lock lock(m_critSection);
-
-  m_playerShowInfo = event.m_showInfo;
-  CheckAndPublishPreviewAndPlayerShowInfoChangedEvent();
 }
 
 void CPVRGUIChannelNavigator::SelectNextChannel(ChannelSwitchMode eSwitchMode)

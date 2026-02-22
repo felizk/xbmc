@@ -29,6 +29,7 @@ public:
   ~CGUIWindowPVRRecordingsBase() override;
 
   void OnWindowLoaded() override;
+  void OnInitWindow() override;
   void OnDeinitWindow(int nextWindowID) override;
   bool OnMessage(CGUIMessage& message) override;
   bool OnAction(const CAction& action) override;
@@ -39,7 +40,7 @@ public:
   void UpdateButtons() override;
 
 protected:
-  std::string GetRootPath() const override;
+  std::string GetRootPath() override;
   std::string GetDirectoryPath() override;
   void OnPrepareFileItems(CFileItemList& items) override;
   bool GetFilteredItems(const std::string& filter, CFileItemList& items) override;
@@ -48,6 +49,7 @@ private:
   bool OnContextButtonDeleteAll(CONTEXT_BUTTON button) const;
 
   bool m_bShowDeletedRecordings{false};
+  bool m_forceUngrouped{false};
   CVideoThumbLoader m_thumbLoader;
   CVideoDatabase m_database;
   std::unique_ptr<CPVRSettings> m_settings;

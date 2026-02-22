@@ -9,9 +9,13 @@
 #include "GUIWindowFavourites.h"
 
 #include "FileItem.h"
+#include "ServiceBroker.h"
+#include "favourites/FavouritesService.h"
 #include "favourites/FavouritesURL.h"
 #include "favourites/FavouritesUtils.h"
+#include "guilib/GUIComponent.h"
 #include "guilib/GUIMessage.h"
+#include "guilib/GUIWindowManager.h"
 #include "input/actions/Action.h"
 #include "input/actions/ActionIDs.h"
 #include "messaging/ApplicationMessenger.h"
@@ -29,18 +33,17 @@ CGUIWindowFavourites::CGUIWindowFavourites()
 {
   m_loadType = KEEP_IN_MEMORY;
   CServiceBroker::GetFavouritesService().Events().Subscribe(
-      this, &CGUIWindowFavourites::OnFavouritesEvent);
+      this,
+      [this](const CFavouritesService::FavouritesUpdated& /*event*/)
+      {
+        CGUIMessage m(GUI_MSG_REFRESH_LIST, GetID(), 0, 0);
+        CServiceBroker::GetAppMessenger()->SendGUIMessage(m);
+      });
 }
 
 CGUIWindowFavourites::~CGUIWindowFavourites()
 {
   CServiceBroker::GetFavouritesService().Events().Unsubscribe(this);
-}
-
-void CGUIWindowFavourites::OnFavouritesEvent(const CFavouritesService::FavouritesUpdated& event)
-{
-  CGUIMessage m(GUI_MSG_REFRESH_LIST, GetID(), 0, 0);
-  CServiceBroker::GetAppMessenger()->SendGUIMessage(m);
 }
 
 bool CGUIWindowFavourites::OnSelect(int itemIdx)
@@ -61,7 +64,7 @@ bool CGUIWindowFavourites::OnSelect(int itemIdx)
     return false;
 
   // video select action setting is for files only, except exec func is playmedia...
-  if (targetItem->HasVideoInfoTag() && (!targetItem->m_bIsFolder || isPlayMedia))
+  if (targetItem->HasVideoInfoTag() && (!targetItem->IsFolder() || isPlayMedia))
   {
     KODI::VIDEO::GUILIB::CVideoSelectActionProcessor proc{targetItem};
     if (proc.ProcessDefaultAction())
@@ -88,7 +91,7 @@ bool CGUIWindowFavourites::OnAction(const CAction& action)
     const auto item{std::make_shared<CFileItem>(*targetItem)};
 
     // video play action setting is for files and folders...
-    if (item->HasVideoInfoTag() || (item->m_bIsFolder && VIDEO::UTILS::IsItemPlayable(*item)))
+    if (item->HasVideoInfoTag() || (item->IsFolder() && VIDEO::UTILS::IsItemPlayable(*item)))
     {
       KODI::VIDEO::GUILIB::CVideoPlayActionProcessor proc{item};
       if (proc.ProcessDefaultAction())
@@ -137,22 +140,47 @@ bool CGUIWindowFavourites::OnMessage(CGUIMessage& message)
 {
   bool ret = false;
 
-  if (message.GetMessage() == GUI_MSG_REFRESH_LIST)
+  switch (message.GetMessage())
   {
-    const int size{m_vecItems->Size()};
-    int selected{m_viewControl.GetSelectedItem()};
-    if (!m_vecItems->IsEmpty() && selected == size - 1)
-      --selected; // remove of last item, select the new last item after refresh
-
-    Refresh(true);
-
-    if (m_vecItems->Size() < size)
+    case GUI_MSG_REFRESH_LIST:
     {
-      // item removed. select item after the removed item
-      m_viewControl.SetSelectedItem(selected);
-    }
+      const int size{m_vecItems->Size()};
+      int selected{m_viewControl.GetSelectedItem()};
+      if (!m_vecItems->IsEmpty() && selected == size - 1)
+        --selected; // Remove of last item, select the new last item after refresh.
 
-    ret = true;
+      Refresh(true);
+
+      if (m_vecItems->Size() < size)
+      {
+        // Item removed. Select item after the removed item.
+        m_viewControl.SetSelectedItem(selected);
+      }
+
+      ret = true;
+      break;
+    }
+    case GUI_MSG_CLICKED:
+    {
+      if (message.GetSenderId() == m_viewControl.GetCurrentControl())
+      {
+        const int action{message.GetParam1()};
+        if (action == ACTION_SELECT_ITEM || action == ACTION_MOUSE_LEFT_CLICK)
+        {
+          // Handle ".." item.
+          const int selectedIndex{m_viewControl.GetSelectedItem()};
+          const std::shared_ptr<const CFileItem> item{m_vecItems->Get(selectedIndex)};
+          if (item && item->IsParentFolder())
+          {
+            CServiceBroker::GetGUI()->GetWindowManager().ActivateWindow(WINDOW_HOME);
+            ret = true;
+          }
+        }
+      }
+      break;
+    }
+    default:
+      break;
   }
 
   return ret || CGUIMediaWindow::OnMessage(message);

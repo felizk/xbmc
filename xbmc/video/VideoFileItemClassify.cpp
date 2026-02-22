@@ -29,14 +29,14 @@ bool IsDiscStub(const CFileItem& item)
 {
   if (IsVideoDb(item) && item.HasVideoInfoTag())
   {
-    CFileItem dbItem(item.m_bIsFolder ? item.GetVideoInfoTag()->m_strPath
-                                      : item.GetVideoInfoTag()->m_strFileNameAndPath,
-                     item.m_bIsFolder);
+    CFileItem dbItem(item.IsFolder() ? item.GetVideoInfoTag()->m_strPath
+                                     : item.GetVideoInfoTag()->m_strFileNameAndPath,
+                     item.IsFolder());
     return IsDiscStub(dbItem);
   }
 
-  return URIUtils::HasExtension(item.GetPath(),
-                                CServiceBroker::GetFileExtensionProvider().GetDiscStubExtensions());
+  return item.GetURL().HasExtension(
+      CServiceBroker::GetFileExtensionProvider().GetDiscStubExtensions());
 }
 
 bool IsDVDFile(const CFileItem& item, bool bVobs /*= true*/, bool bIfos /*= true*/)
@@ -70,8 +70,8 @@ bool IsProtectedBlurayDisc(const CFileItem& item)
 
 bool IsSubtitle(const CFileItem& item)
 {
-  return URIUtils::HasExtension(item.GetPath(),
-                                CServiceBroker::GetFileExtensionProvider().GetSubtitleExtensions());
+  return item.GetURL().HasExtension(
+      CServiceBroker::GetFileExtensionProvider().GetSubtitleExtensions());
 }
 
 bool IsVideo(const CFileItem& item)
@@ -93,7 +93,7 @@ bool IsVideo(const CFileItem& item)
     return false;
 
   // TV recordings are videos...
-  if (!item.m_bIsFolder && URIUtils::IsPVRTVRecordingFileOrFolder(item.GetPath()))
+  if (!item.IsFolder() && URIUtils::IsPVRTVRecordingFileOrFolder(item.GetPath()))
     return true;
 
   // ... all other PVR items are not.
@@ -115,13 +115,13 @@ bool IsVideo(const CFileItem& item)
   //! @todo If the file is a zip file, ask the game clients if any support this
   // file before assuming it is video.
 
-  return URIUtils::HasExtension(item.GetPath(),
-                                CServiceBroker::GetFileExtensionProvider().GetVideoExtensions());
+  return item.GetURL().HasExtension(
+      CServiceBroker::GetFileExtensionProvider().GetVideoExtensions());
 }
 
 bool IsVideoAssetFile(const CFileItem& item)
 {
-  if (item.m_bIsFolder || !IsVideoDb(item))
+  if (item.IsFolder() || !IsVideoDb(item))
     return false;
 
   // @todo better encoding of video assets as path, they won't always be tied with movies.
@@ -136,7 +136,7 @@ bool IsVideoDb(const CFileItem& item)
 
 bool IsVideoExtrasFolder(const CFileItem& item)
 {
-  return item.m_bIsFolder &&
+  return item.IsFolder() &&
          StringUtils::EqualsNoCase(URIUtils::GetFileOrFolderName(item.GetPath()), "extras");
 }
 

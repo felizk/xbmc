@@ -17,6 +17,7 @@
 #include "utils/Variant.h"
 
 #include <algorithm>
+#include <limits>
 
 std::string ArrayToString(SortAttribute attributes, const CVariant &variant, const std::string &separator = " / ")
 {
@@ -346,7 +347,7 @@ std::string ByEpisodeNumber(SortAttribute attributes, const SortItem &values)
     num = ((uint64_t)values.at(FieldSeason).asInteger() << 32) + (values.at(FieldEpisodeNumber).asInteger() << 16);
 
   std::string title;
-  if (values.find(FieldMediaType) != values.end() && values.at(FieldMediaType).asString() == MediaTypeMovie)
+  if (values.contains(FieldMediaType) && values.at(FieldMediaType).asString() == MediaTypeMovie)
     title = BySortTitle(attributes, values);
   if (title.empty())
     title = ByLabel(attributes, values);
@@ -356,10 +357,14 @@ std::string ByEpisodeNumber(SortAttribute attributes, const SortItem &values)
 
 std::string BySeason(SortAttribute attributes, const SortItem &values)
 {
-  int season = (int)values.at(FieldSeason).asInteger();
+  auto season = static_cast<int>(values.at(FieldSeason).asInteger());
+
+  if (season == 0)
+    season = std::numeric_limits<int>::max();
+
   const CVariant &specialSeason = values.at(FieldSeasonSpecialSort);
-  if (!specialSeason.isNull())
-    season = (int)specialSeason.asInteger();
+  if (!specialSeason.isNull() && specialSeason.asInteger() > 0)
+    season = static_cast<int>(specialSeason.asInteger());
 
   return StringUtils::Format("{} {}", season, ByLabel(attributes, values));
 }
@@ -521,12 +526,14 @@ bool preliminarySort(const SortItem &left, const SortItem &right, bool handleFol
 
   // look at special sorting behaviour
   SortItem::const_iterator itLeft, itRight;
-  SortSpecial leftSortSpecial = SortSpecialNone;
-  SortSpecial rightSortSpecial = SortSpecialNone;
-  if ((itLeft = left.find(FieldSortSpecial)) != left.end() && itLeft->second.asInteger() <= (int64_t)SortSpecialOnBottom)
-    leftSortSpecial = (SortSpecial)itLeft->second.asInteger();
-  if ((itRight = right.find(FieldSortSpecial)) != right.end() && itRight->second.asInteger() <= (int64_t)SortSpecialOnBottom)
-    rightSortSpecial = (SortSpecial)itRight->second.asInteger();
+  SortSpecial leftSortSpecial = SortSpecial::NONE;
+  SortSpecial rightSortSpecial = SortSpecial::NONE;
+  if ((itLeft = left.find(FieldSortSpecial)) != left.end() &&
+      itLeft->second.asInteger() <= static_cast<int64_t>(SortSpecial::BOTTOM))
+    leftSortSpecial = static_cast<SortSpecial>(itLeft->second.asInteger());
+  if ((itRight = right.find(FieldSortSpecial)) != right.end() &&
+      itRight->second.asInteger() <= static_cast<int64_t>(SortSpecial::BOTTOM))
+    rightSortSpecial = static_cast<SortSpecial>(itRight->second.asInteger());
 
   // one has a special sort
   if (leftSortSpecial != rightSortSpecial)
@@ -534,8 +541,7 @@ bool preliminarySort(const SortItem &left, const SortItem &right, bool handleFol
     // left should be sorted on top
     // or right should be sorted on bottom
     // => left is sorted above right
-    if (leftSortSpecial == SortSpecialOnTop ||
-        rightSortSpecial == SortSpecialOnBottom)
+    if (leftSortSpecial == SortSpecial::TOP || rightSortSpecial == SortSpecial::BOTTOM)
     {
       result = true;
       return true;
@@ -546,7 +552,7 @@ bool preliminarySort(const SortItem &left, const SortItem &right, bool handleFol
     return true;
   }
   // both have either sort on top or sort on bottom -> leave as-is
-  else if (leftSortSpecial != SortSpecialNone)
+  else if (leftSortSpecial != SortSpecial::NONE)
   {
     result = false;
     return true;
@@ -1000,7 +1006,7 @@ void SortUtils::Sort(SortBy sortBy, SortOrder sortOrder, SortAttribute attribute
         // add all fields to the item that are required for sorting if they are currently missing
         for (Fields::const_iterator field = sortingFields.begin(); field != sortingFields.end(); ++field)
         {
-          if (item->find(*field) == item->end())
+          if (!item->contains(*field))
             item->insert(std::pair<Field, CVariant>(*field, CVariant::ConstNullVariant));
         }
 
@@ -1039,7 +1045,7 @@ void SortUtils::Sort(SortBy sortBy, SortOrder sortOrder, SortAttribute attribute
         // add all fields to the item that are required for sorting if they are currently missing
         for (Fields::const_iterator field = sortingFields.begin(); field != sortingFields.end(); ++field)
         {
-          if ((*item)->find(*field) == (*item)->end())
+          if (!(*item)->contains(*field))
             (*item)->insert(std::pair<Field, CVariant>(*field, CVariant::ConstNullVariant));
         }
 
@@ -1072,7 +1078,10 @@ void SortUtils::Sort(const SortDescription &sortDescription, SortItems& items)
   Sort(sortDescription.sortBy, sortDescription.sortOrder, sortDescription.sortAttributes, items, sortDescription.limitEnd, sortDescription.limitStart);
 }
 
-bool SortUtils::SortFromDataset(const SortDescription &sortDescription, const MediaType &mediaType, const std::unique_ptr<dbiplus::Dataset> &dataset, DatabaseResults &results)
+bool SortUtils::SortFromDataset(const SortDescription& sortDescription,
+                                const MediaType& mediaType,
+                                dbiplus::Dataset& dataset,
+                                DatabaseResults& results)
 {
   FieldList fields;
   if (!DatabaseUtils::GetSelectFields(SortUtils::GetFieldsForSorting(sortDescription.sortBy), mediaType, fields))
@@ -1105,17 +1114,19 @@ const SortUtils::SortPreparator& SortUtils::getPreparator(SortBy sortBy)
 SortUtils::Sorter SortUtils::getSorter(SortOrder sortOrder, SortAttribute attributes)
 {
   if (attributes & SortAttributeIgnoreFolders)
-    return sortOrder == SortOrderDescending ? SorterIgnoreFoldersDescending : SorterIgnoreFoldersAscending;
+    return sortOrder == SortOrder::DESCENDING ? SorterIgnoreFoldersDescending
+                                              : SorterIgnoreFoldersAscending;
 
-  return sortOrder == SortOrderDescending ? SorterDescending : SorterAscending;
+  return sortOrder == SortOrder::DESCENDING ? SorterDescending : SorterAscending;
 }
 
 SortUtils::SorterIndirect SortUtils::getSorterIndirect(SortOrder sortOrder, SortAttribute attributes)
 {
   if (attributes & SortAttributeIgnoreFolders)
-    return sortOrder == SortOrderDescending ? SorterIndirectIgnoreFoldersDescending : SorterIndirectIgnoreFoldersAscending;
+    return sortOrder == SortOrder::DESCENDING ? SorterIndirectIgnoreFoldersDescending
+                                              : SorterIndirectIgnoreFoldersAscending;
 
-  return sortOrder == SortOrderDescending ? SorterIndirectDescending : SorterIndirectAscending;
+  return sortOrder == SortOrder::DESCENDING ? SorterIndirectDescending : SorterIndirectAscending;
 }
 
 const Fields& SortUtils::GetFieldsForSorting(SortBy sortBy)
@@ -1129,7 +1140,7 @@ const Fields& SortUtils::GetFieldsForSorting(SortBy sortBy)
 
 std::string SortUtils::RemoveArticles(const std::string &label)
 {
-  std::set<std::string> sortTokens = g_langInfo.GetSortTokens();
+  const CLangInfo::Tokens sortTokens = g_langInfo.GetSortTokens();
   for (std::set<std::string>::const_iterator token = sortTokens.begin(); token != sortTokens.end(); ++token)
   {
     if (token->size() < label.size() && StringUtils::StartsWithNoCase(label, *token))
@@ -1369,14 +1380,12 @@ const std::string& SortUtils::SortMethodToString(SortBy sortMethod)
   return TypeToString<SortBy>(sortMethods, sortMethod);
 }
 
-const std::map<std::string, SortOrder> sortOrders = {
-  { "ascending", SortOrderAscending },
-  { "descending", SortOrderDescending }
-};
+const std::map<std::string, SortOrder> sortOrders = {{"ascending", SortOrder::ASCENDING},
+                                                     {"descending", SortOrder::DESCENDING}};
 
 SortOrder SortUtils::SortOrderFromString(const std::string& sortOrder)
 {
-  return TypeFromString<SortOrder>(sortOrders, sortOrder, SortOrderNone);
+  return TypeFromString<SortOrder>(sortOrders, sortOrder, SortOrder::NONE);
 }
 
 const std::string& SortUtils::SortOrderToString(SortOrder sortOrder)

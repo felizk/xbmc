@@ -12,7 +12,8 @@
 #include "ServiceBroker.h"
 #include "cores/AudioEngine/Engines/ActiveAE/ActiveAE.h"
 #include "cores/AudioEngine/Interfaces/AE.h"
-#include "guilib/LocalizeStrings.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "settings/lib/SettingDefinitions.h"
@@ -83,67 +84,67 @@ void CActiveAESettings::OnSettingChanged(const std::shared_ptr<const CSetting>& 
 
 void CActiveAESettings::SettingOptionsAudioDevicesFiller(const SettingConstPtr& setting,
                                                          std::vector<StringSettingOption>& list,
-                                                         std::string& current,
-                                                         void* data)
+                                                         std::string& current)
 {
   SettingOptionsAudioDevicesFillerGeneral(setting, list, current, false);
 }
 
 void CActiveAESettings::SettingOptionsAudioDevicesPassthroughFiller(
-    const SettingConstPtr& setting,
-    std::vector<StringSettingOption>& list,
-    std::string& current,
-    void* data)
+    const SettingConstPtr& setting, std::vector<StringSettingOption>& list, std::string& current)
 {
   SettingOptionsAudioDevicesFillerGeneral(setting, list, current, true);
 }
 
 void CActiveAESettings::SettingOptionsAudioQualityLevelsFiller(
-    const SettingConstPtr& setting,
-    std::vector<IntegerSettingOption>& list,
-    int& current,
-    void* data)
+    const SettingConstPtr& /*setting*/, std::vector<IntegerSettingOption>& list, int& /*current*/)
 {
   std::unique_lock lock(m_instance->m_cs);
 
   if (m_instance->m_audioEngine.SupportsQualityLevel(AE_QUALITY_LOW))
-    list.emplace_back(g_localizeStrings.Get(13506), AE_QUALITY_LOW);
+    list.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13506),
+                      AE_QUALITY_LOW);
   if (m_instance->m_audioEngine.SupportsQualityLevel(AE_QUALITY_MID))
-    list.emplace_back(g_localizeStrings.Get(13507), AE_QUALITY_MID);
+    list.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13507),
+                      AE_QUALITY_MID);
   if (m_instance->m_audioEngine.SupportsQualityLevel(AE_QUALITY_HIGH))
-    list.emplace_back(g_localizeStrings.Get(13508), AE_QUALITY_HIGH);
+    list.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13508),
+                      AE_QUALITY_HIGH);
   if (m_instance->m_audioEngine.SupportsQualityLevel(AE_QUALITY_REALLYHIGH))
-    list.emplace_back(g_localizeStrings.Get(13509), AE_QUALITY_REALLYHIGH);
+    list.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13509),
+                      AE_QUALITY_REALLYHIGH);
   if (m_instance->m_audioEngine.SupportsQualityLevel(AE_QUALITY_GPU))
-    list.emplace_back(g_localizeStrings.Get(38010), AE_QUALITY_GPU);
+    list.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(38010),
+                      AE_QUALITY_GPU);
 }
 
 void CActiveAESettings::SettingOptionsAudioStreamsilenceFiller(
-    const SettingConstPtr& setting,
-    std::vector<IntegerSettingOption>& list,
-    int& current,
-    void* data)
+    const SettingConstPtr& /*setting*/, std::vector<IntegerSettingOption>& list, int& /*current*/)
 {
   std::unique_lock lock(m_instance->m_cs);
 
-  list.emplace_back(g_localizeStrings.Get(20422),
+  list.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20422),
                     XbmcThreads::EndTime<std::chrono::minutes>::Max().count());
-  list.emplace_back(g_localizeStrings.Get(13551), 0);
+  list.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13551), 0);
 
   if (m_instance->m_audioEngine.SupportsSilenceTimeout())
   {
-    list.emplace_back(StringUtils::Format(g_localizeStrings.Get(13554), 1), 1);
+    list.emplace_back(
+        StringUtils::Format(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13554),
+                            1),
+        1);
     for (int i = 2; i <= 10; i++)
     {
-      list.emplace_back(StringUtils::Format(g_localizeStrings.Get(13555), i), i);
+      list.emplace_back(
+          StringUtils::Format(
+              CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13555), i),
+          i);
     }
   }
 }
 
 bool CActiveAESettings::IsSettingVisible(const std::string& condition,
                                          const std::string& value,
-                                         const SettingConstPtr& setting,
-                                         void* data)
+                                         const SettingConstPtr& setting)
 {
   if (setting == NULL || value.empty())
     return false;

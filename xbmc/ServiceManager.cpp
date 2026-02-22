@@ -168,7 +168,7 @@ bool CServiceManager::InitStageTwo(const std::string& profilesUserDataFolder)
   m_powerManager->Initialize();
   m_powerManager->SetDefaults();
 
-  m_weatherManager = std::make_unique<CWeatherManager>();
+  m_weatherManager = std::make_unique<CWeatherManager>(*m_addonMgr);
 
   m_mediaManager = std::make_unique<CMediaManager>();
   m_mediaManager->Initialize();
@@ -200,9 +200,9 @@ bool CServiceManager::InitStageThree(const std::shared_ptr<CProfileManager>& pro
   // Peripherals depends on strings being loaded before stage 3
   m_peripherals->Initialise();
 
-  m_gameServices =
-      std::make_unique<GAME::CGameServices>(*m_gameControllerManager, *m_gameRenderManager,
-                                            *m_peripherals, *profileManager, *m_inputManager);
+  m_gameServices = std::make_unique<GAME::CGameServices>(
+      *m_gameControllerManager, *m_gameRenderManager, *m_peripherals, *profileManager,
+      *m_inputManager, *m_addonMgr);
 
   m_contextMenuManager->Init();
 

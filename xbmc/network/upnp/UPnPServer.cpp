@@ -24,7 +24,6 @@
 #include "filesystem/VideoDatabaseDirectory/QueryParams.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/GUIWindowManager.h"
-#include "guilib/LocalizeStrings.h"
 #include "guilib/WindowIDs.h"
 #include "imagefiles/ImageFileURL.h"
 #include "interfaces/AnnouncementManager.h"
@@ -35,6 +34,8 @@
 #include "music/MusicThumbLoader.h"
 #include "music/tags/MusicInfoTag.h"
 #include "playlists/PlayListFileItemClassify.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "utils/Digest.h"
@@ -291,7 +292,7 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
   if (path.StartsWith("virtualpath://upnproot"))
   {
     path.TrimRight("/");
-    item->m_bIsFolder = true;
+    item->SetFolder(true);
     if (path.StartsWith("virtualpath://"))
     {
       object = new PLT_MediaContainer;
@@ -327,7 +328,7 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
       {
         item->SetLabel("Music Library");
         item->SetLabelPreformatted(true);
-        item->m_bIsFolder = true;
+        item->SetFolder(true);
       }
       else
       {
@@ -348,14 +349,14 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
           }
           else if (params.GetAlbumId() >= 0)
           {
-            item->m_bIsFolder = true;
+            item->SetFolder(true);
             CAlbum album;
             if (db.GetAlbum(params.GetAlbumId(), album, false))
               item->GetMusicInfoTag()->SetAlbum(album);
           }
           else if (params.GetArtistId() >= 0)
           {
-            item->m_bIsFolder = true;
+            item->SetFolder(true);
             CArtist artist;
             if (db.GetArtist(params.GetArtistId(), artist, false))
               item->GetMusicInfoTag()->SetArtist(artist);
@@ -365,7 +366,7 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
         // all items apart from songs (artists, albums, etc) are folders
         if (!item->HasMusicInfoTag() || item->GetMusicInfoTag()->GetType() != MediaTypeSong)
         {
-          item->m_bIsFolder = true;
+          item->SetFolder(true);
         }
 
         if (item->GetLabel().empty())
@@ -386,7 +387,7 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
       {
         item->SetLabel("Video Library");
         item->SetLabelPreformatted(true);
-        item->m_bIsFolder = true;
+        item->SetFolder(true);
       }
       else
       {
@@ -425,7 +426,7 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
         {
           // for tvshows and seasons, iEpisode and playCount are
           // invalid
-          item->m_bIsFolder = true;
+          item->SetFolder(true);
           item->GetVideoInfoTag()->m_iEpisode = (int)item->GetProperty("totalepisodes").asInteger();
           item->GetVideoInfoTag()->SetPlayCount(
               static_cast<int>(item->GetProperty("watchedepisodes").asInteger()));
@@ -433,7 +434,7 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
         // if this is an item in the library without a playable path it most be a folder
         else if (item->GetVideoInfoTag()->m_strFileNameAndPath.empty())
         {
-          item->m_bIsFolder = true;
+          item->SetFolder(true);
         }
 
         // try to grab title from tag
@@ -458,17 +459,17 @@ PLT_MediaObject* CUPnPServer::Build(const std::shared_ptr<CFileItem>& item,
     // all playlist types are folders
     else if (PLAYLIST::IsPlayList(*item) || PLAYLIST::IsSmartPlayList(*item))
     {
-      item->m_bIsFolder = true;
+      item->SetFolder(true);
     }
     // audio and not a playlist -> song, so it's not a folder
     else if (MUSIC::IsAudio(*item))
     {
-      item->m_bIsFolder = false;
+      item->SetFolder(true);
     }
     // any other type of item -> delegate to CDirectory
     else
     {
-      item->m_bIsFolder = CDirectory::Exists(item->GetPath());
+      item->SetFolder(CDirectory::Exists(item->GetPath()));
     }
 
     // not a virtual path directory, new system
@@ -792,7 +793,7 @@ NPT_Result CUPnPServer::OnBrowseDirectChildren(PLT_ActionReference& action,
     return NPT_FAILURE;
   }
 
-  items.SetPath(std::string(parent_id));
+  items.SetPath(static_cast<const char*>(parent_id));
 
   // guard against loading while saving to the same cache file
   // as CArchive currently performs no locking itself
@@ -823,7 +824,7 @@ NPT_Result CUPnPServer::OnBrowseDirectChildren(PLT_ActionReference& action,
       item->SetLabelPreformatted(true);
       items.Add(item);
 
-      items.Sort(SortByLabel, SortOrderAscending);
+      items.Sort(SortByLabel, SortOrder::ASCENDING);
     }
     else
     {
@@ -854,7 +855,7 @@ NPT_Result CUPnPServer::OnBrowseDirectChildren(PLT_ActionReference& action,
   if (items.GetPath() == "musicdb://")
   {
     CFileItemPtr playlists(new CFileItem("special://musicplaylists/", true));
-    playlists->SetLabel(g_localizeStrings.Get(136));
+    playlists->SetLabel(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(136));
     items.Add(playlists);
 
     CVideoDatabase database;
@@ -862,7 +863,7 @@ NPT_Result CUPnPServer::OnBrowseDirectChildren(PLT_ActionReference& action,
     if (database.HasContent(VideoDbContentType::MUSICVIDEOS))
     {
       CFileItemPtr mvideos(new CFileItem("library://video/musicvideos/", true));
-      mvideos->SetLabel(g_localizeStrings.Get(20389));
+      mvideos->SetLabel(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20389));
       items.Add(mvideos);
     }
   }
@@ -1326,7 +1327,7 @@ NPT_Result CUPnPServer::OnUpdateObject(PLT_ActionReference& action,
 
     // must first determine type of file from object id
     VIDEODATABASEDIRECTORY::CQueryParams params;
-    VIDEODATABASEDIRECTORY::CDirectoryNode::GetDatabaseInfo(path.c_str(), params);
+    VIDEODATABASEDIRECTORY::CDirectoryNode::GetDatabaseInfo(path, params);
 
     int id = -1;
     VideoDbContentType content_type;

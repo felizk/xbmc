@@ -26,11 +26,12 @@
 #include "cores/VideoPlayer/Process/wayland/ProcessInfoWayland.h"
 #include "cores/VideoPlayer/VideoReferenceClock.h"
 #include "guilib/DispResource.h"
-#include "guilib/LocalizeStrings.h"
 #include "input/InputManager.h"
 #include "input/touch/generic/GenericTouchActionHandler.h"
 #include "input/touch/generic/GenericTouchInputHandler.h"
 #include "messaging/ApplicationMessenger.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/DisplaySettings.h"
 #include "settings/Settings.h"
@@ -139,10 +140,7 @@ CWinSystemWayland::CWinSystemWayland()
   m_winEvents = std::make_unique<CWinEventsWayland>();
 }
 
-CWinSystemWayland::~CWinSystemWayland() noexcept
-{
-  DestroyWindowSystem();
-}
+CWinSystemWayland::~CWinSystemWayland() noexcept = default;
 
 bool CWinSystemWayland::InitWindowSystem()
 {
@@ -204,12 +202,14 @@ bool CWinSystemWayland::InitWindowSystem()
       ->GetSetting(CSettings::SETTING_VIDEOSCREEN_LIMITEDRANGE)
       ->SetVisible(true);
 
+  m_colorManager = std::make_unique<CColorManager>(*m_connection);
   return CWinSystemBase::InitWindowSystem();
 }
 
 bool CWinSystemWayland::DestroyWindowSystem()
 {
   DestroyWindow();
+  m_colorManager.reset();
   // wl_display_disconnect frees all proxy objects, so we have to make sure
   // all stuff is gone on the C++ side before that
   m_cursorSurface = wayland::surface_t{};
@@ -362,6 +362,8 @@ bool CWinSystemWayland::CreateNewWindow(const std::string& name,
   //   stopped then.
   CWinEventsWayland::SetDisplay(&m_connection->GetDisplay());
 
+  m_colorManager->SetSurface(m_surface);
+
   return true;
 }
 
@@ -412,9 +414,9 @@ std::vector<std::string> CWinSystemWayland::GetConnectedOutputs()
 {
   std::unique_lock lock(m_outputsMutex);
   std::vector<std::string> outputs;
-  std::transform(m_outputs.cbegin(), m_outputs.cend(), std::back_inserter(outputs),
-                 [this](decltype(m_outputs)::value_type const& pair)
-                 { return UserFriendlyOutputName(pair.second); });
+  std::ranges::transform(m_outputs, std::back_inserter(outputs),
+                         [this](decltype(m_outputs)::value_type const& pair)
+                         { return UserFriendlyOutputName(pair.second); });
 
   return outputs;
 }
@@ -1065,7 +1067,7 @@ std::string CWinSystemWayland::UserFriendlyOutputName(std::shared_ptr<COutput> c
   if (parts.empty())
   {
     // Fallback to "unknown" if no name received from compositor
-    parts.emplace_back(g_localizeStrings.Get(13205));
+    parts.emplace_back(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13205));
   }
 
   // Add position
@@ -1087,9 +1089,8 @@ bool CWinSystemWayland::Minimize()
 bool CWinSystemWayland::HasCursor()
 {
   std::unique_lock lock(m_seatsMutex);
-  return std::any_of(m_seats.cbegin(), m_seats.cend(),
-                     [](decltype(m_seats)::value_type const& entry)
-                     { return entry.second->HasPointerCapability(); });
+  return std::ranges::any_of(m_seats, [](const auto& entry)
+                             { return entry.second->HasPointerCapability(); });
 }
 
 void CWinSystemWayland::ShowOSMouse(bool show)
@@ -1522,12 +1523,27 @@ std::string CWinSystemWayland::GetClipboardText()
   for (auto const& seat : m_seats)
   {
     auto text = seat.second->GetSelectionText();
-    if (text != "")
+    if (!text.empty())
     {
       return text;
     }
   }
   return "";
+}
+
+bool CWinSystemWayland::SetHDR(const VideoPicture* videoPicture)
+{
+  return m_colorManager->SetHDR(videoPicture);
+}
+
+bool CWinSystemWayland::IsHDRDisplay()
+{
+  return m_colorManager->IsHDRDisplay();
+}
+
+CHDRCapabilities CWinSystemWayland::GetDisplayHDRCapabilities() const
+{
+  return m_colorManager->GetDisplayHDRCapabilities();
 }
 
 void CWinSystemWayland::OnWindowMove(const wayland::seat_t& seat, std::uint32_t serial)

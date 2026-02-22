@@ -24,21 +24,25 @@ if(NOT TARGET ${APP_NAME_LC}::${CMAKE_FIND_PACKAGE_NAME})
 
     find_path(ISO9660PP_INCLUDE_DIR NAMES cdio++/iso9660.hpp
                                     HINTS ${DEPENDS_PATH}/include ${PC_ISO9660PP_INCLUDEDIR}
-                                    ${${CORE_PLATFORM_LC}_SEARCH_CONFIG})
+                                    ${${CORE_SYSTEM_NAME}_SEARCH_CONFIG})
 
     find_library(ISO9660PP_LIBRARY NAMES libiso9660++ iso9660++
                                    HINTS ${DEPENDS_PATH}/lib ${PC_ISO9660PP_LIBDIR}
-                                   ${${CORE_PLATFORM_LC}_SEARCH_CONFIG})
+                                   ${${CORE_SYSTEM_NAME}_SEARCH_CONFIG})
 
     find_path(ISO9660_INCLUDE_DIR NAMES cdio/iso9660.h
                                   HINTS ${DEPENDS_PATH}/include ${PC_ISO9660_INCLUDEDIR}
-                                  ${${CORE_PLATFORM_LC}_SEARCH_CONFIG})
+                                  ${${CORE_SYSTEM_NAME}_SEARCH_CONFIG})
 
     find_library(ISO9660_LIBRARY NAMES libiso9660 iso9660
                                  HINTS ${DEPENDS_PATH}/lib ${PC_ISO9660_LIBDIR}
-                                 ${${CORE_PLATFORM_LC}_SEARCH_CONFIG})
+                                 ${${CORE_SYSTEM_NAME}_SEARCH_CONFIG})
 
     set(ISO9660PP_VERSION ${PC_ISO9660PP_VERSION})
+
+    if(NOT VERBOSE_FIND)
+       set(${CMAKE_FIND_PACKAGE_NAME}_FIND_QUIETLY TRUE)
+     endif()
 
     include(FindPackageHandleStandardArgs)
     find_package_handle_standard_args(Iso9660pp

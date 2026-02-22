@@ -846,7 +846,7 @@ extern "C"
       strncpy(data->name,vecDirsOpen[iDirSlot].items[0]->GetLabel().c_str(), size);
       if (size)
         data->name[size - 1] = '\0';
-      data->size = static_cast<_fsize_t>(vecDirsOpen[iDirSlot].items[0]->m_dwSize);
+      data->size = static_cast<_fsize_t>(vecDirsOpen[iDirSlot].items[0]->GetSize());
       data->time_write = 0;
       data->time_access = 0;
       vecDirsOpen[iDirSlot].curr_index = 0;
@@ -903,7 +903,7 @@ extern "C"
       strncpy(data->name,vecDirsOpen[found].items[iItem+1]->GetLabel().c_str(), size);
       if (size)
         data->name[size - 1] = '\0';
-      data->size = static_cast<_fsize_t>(vecDirsOpen[found].items[iItem+1]->m_dwSize);
+      data->size = static_cast<_fsize_t>(vecDirsOpen[found].items[iItem + 1]->GetSize());
       vecDirsOpen[found].curr_index++;
       return 0;
     }
@@ -999,8 +999,8 @@ extern "C"
         strncpy(entry->d_name, "..\0", 3);
       else
       {
-        strncpy(entry->d_name, dirData->items[dirData->curr_index - 2]->GetLabel().c_str(), sizeof(entry->d_name));
-        entry->d_name[sizeof(entry->d_name)-1] = '\0'; // null-terminate any truncated paths
+        snprintf(entry->d_name, sizeof(entry->d_name), "%s",
+                 dirData->items[dirData->curr_index - 2]->GetLabel().c_str());
       }
       dirData->last_entry = entry;
       dirData->curr_index++;
@@ -1837,7 +1837,10 @@ extern "C"
         char *value = (char*)malloc(size);
 
         if (!value)
+        {
+          std::free(var);
           return -1;
+        }
         value[0] = 0;
 
         memcpy(var, envstring, value_start - envstring);
@@ -1878,19 +1881,14 @@ extern "C"
 
           if (free_position != NULL)
           {
-            // free position, copy value
             size = strlen(var) + strlen(value) + 2;
-            *free_position = (char*)malloc(size); // for '=' and 0 termination
-            if ((*free_position))
+            *free_position = static_cast<char*>(malloc(size));
+            if (*free_position)
             {
-              strncpy(*free_position, var, size);
-              (*free_position)[size - 1] = '\0';
-              strncat(*free_position, "=", size - strlen(*free_position));
-              strncat(*free_position, value, size - strlen(*free_position));
+              snprintf(*free_position, size, "%s=%s", var, value);
               added = true;
             }
           }
-
         }
 
         free(value);

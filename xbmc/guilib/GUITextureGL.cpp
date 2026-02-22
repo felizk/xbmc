@@ -96,13 +96,14 @@ void CGUITextureGL::Begin(KODI::UTILS::COLOR::Color color)
   {
     glDisable(GL_BLEND);
   }
+
   m_packedVertices.clear();
   m_idx.clear();
 }
 
 void CGUITextureGL::End()
 {
-  if (m_packedVertices.size())
+  if (!m_packedVertices.empty())
   {
     GLint posLoc  = m_renderSystem->ShaderGetPos();
     GLint tex0Loc = m_renderSystem->ShaderGetCoord0();
@@ -115,7 +116,8 @@ void CGUITextureGL::End()
 
     glGenBuffers(1, &VertexVBO);
     glBindBuffer(GL_ARRAY_BUFFER, VertexVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(PackedVertex)*m_packedVertices.size(), &m_packedVertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(PackedVertex) * m_packedVertices.size(),
+                 m_packedVertices.data(), GL_STATIC_DRAW);
 
     glUniform1f(depthLoc, m_depth);
 
@@ -282,7 +284,7 @@ void CGUITextureGL::DrawQuad(const CRect& rect,
   VerifyGLState();
 
   GLubyte col[4];
-  GLubyte idx[4] = {0, 1, 3, 2};  //determines order of the vertices
+  GLubyte idx[4] = {0, 1, 3, 2}; // Determines order of triangle strip
   GLuint vertexVBO;
   GLuint indexVBO;
 
@@ -290,7 +292,7 @@ void CGUITextureGL::DrawQuad(const CRect& rect,
   {
     float x, y, z;
     float u1, v1;
-  }vertex[4];
+  } vertex[4];
 
   if (texture)
     renderSystem->EnableShader(ShaderMethodGL::SM_TEXTURE);
@@ -333,6 +335,7 @@ void CGUITextureGL::DrawQuad(const CRect& rect,
 
   if (texture)
   {
+    // Setup texture coordinates
     CRect coords = texCoords ? *texCoords : CRect(0.0f, 0.0f, 1.0f, 1.0f);
     vertex[0].u1 = vertex[3].u1 = coords.x1;
     vertex[0].v1 = vertex[1].v1 = coords.y1;
@@ -359,7 +362,7 @@ void CGUITextureGL::DrawQuad(const CRect& rect,
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexVBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLubyte)*4, idx, GL_STATIC_DRAW);
 
-  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, nullptr);
 
   glDisableVertexAttribArray(posLoc);
   if (texture)
@@ -372,4 +375,3 @@ void CGUITextureGL::DrawQuad(const CRect& rect,
 
   renderSystem->DisableShader();
 }
-

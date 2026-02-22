@@ -8,17 +8,21 @@
 
 #include "PlayerSettings.h"
 
-#include "guilib/LocalizeStrings.h"
+#include "ServiceBroker.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "utils/StringUtils.h"
 
 void CPlayerSettings::SettingOptionsQueueTimeSizesFiller(const SettingConstPtr& setting,
                                                          std::vector<IntegerSettingOption>& list,
-                                                         int& current,
-                                                         void* data)
+                                                         int& current)
 {
-  const auto& secFloat = g_localizeStrings.Get(13553);
-  const auto& seconds = g_localizeStrings.Get(37129);
-  const auto& second = g_localizeStrings.Get(37128);
+  const std::string& secFloat =
+      CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(13553);
+  const std::string& seconds =
+      CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(37129);
+  const std::string& second =
+      CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(37128);
 
   list.emplace_back(StringUtils::Format(secFloat, 0.5), 5);
   list.emplace_back(StringUtils::Format(second, 1), 10);
@@ -28,13 +32,12 @@ void CPlayerSettings::SettingOptionsQueueTimeSizesFiller(const SettingConstPtr& 
   list.emplace_back(StringUtils::Format(seconds, 16), 160);
 }
 
-void CPlayerSettings::SettingOptionsQueueDataSizesFiller(const SettingConstPtr& setting,
+void CPlayerSettings::SettingOptionsQueueDataSizesFiller(const SettingConstPtr& /*setting*/,
                                                          std::vector<IntegerSettingOption>& list,
-                                                         int& current,
-                                                         void* data)
+                                                         int& /*current*/)
 {
-  const auto& mb = g_localizeStrings.Get(37122);
-  const auto& gb = g_localizeStrings.Get(37123);
+  const std::string& mb = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(37122);
+  const std::string& gb = CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(37123);
 
   list.emplace_back(StringUtils::Format(mb, 16), 16);
   list.emplace_back(StringUtils::Format(mb, 32), 32);

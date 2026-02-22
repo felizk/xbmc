@@ -156,9 +156,10 @@ msgctxt "#31024"
 msgid "Choose rating to display for media items"
 msgstr ""
 
-#: /xml/DialogFavourites.xml
+#: /xml/Home.xml
+#: /xml/MyFavourites.xml
 msgctxt "#31025"
-msgid "No favourites found. You can add any item from media views to this list by using the context menu."
+msgid "No favourites found. You can add items from media and other views by using the context menu."
 msgstr ""
 
 #: /xml/DialogSeekBar.xml
@@ -394,7 +395,11 @@ msgctxt "#31080"
 msgid "Ends at"
 msgstr ""
 
-#empty string with id 31081
+#: /xml/Custom_1109_TopBarOverlay.xml
+#. Label to highlight that live stream is being played
+msgctxt "#31081"
+msgid "Live"
+msgstr ""
 
 #: /xml/Custom_1105_MusicOSDSettings.xml
 msgctxt "#31082"
@@ -709,7 +714,7 @@ msgstr ""
 
 #: /xml/SkinSettings.xml
 msgctxt "#31149"
-msgid "Select genre fanart pack"
+msgid "Choose genre fanart pack"
 msgstr ""
 
 #: /xml/DialogAddonInfo.xml
@@ -860,7 +865,12 @@ msgctxt "#31176"
 msgid "Default select action for movie sets on the home screen"
 msgstr ""
 
-#empty strings from id 31177 to 31596
+#: /xml/SkinSettings.xml
+msgctxt "#31177"
+msgid "Choose weather icon pack"
+msgstr ""
+
+#empty strings from id 31178 to 31596
 
 #: /xml/Includes_SettingsDialog.xml
 #. Button to select Player Process Info window

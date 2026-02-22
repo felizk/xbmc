@@ -11,13 +11,22 @@
 #include "RPBaseRenderer.h"
 #include "cores/RetroPlayer/process/RPProcessInfo.h"
 
+#include <map>
+#include <memory>
+#include <stdint.h>
+
 #include "system_gl.h"
 
 namespace KODI
 {
+namespace SHADER
+{
+class CShaderTextureGLRef;
+} // namespace SHADER
+
 namespace RETRO
 {
-class CRenderContext;
+class CRenderBufferOpenGL;
 
 class CRendererFactoryOpenGL : public IRendererFactory
 {
@@ -52,11 +61,18 @@ protected:
     float x, y, z;
     float u1, v1;
   };
+
   struct Svertex
   {
     float x;
     float y;
     float z;
+  };
+
+  struct RenderBufferTextures
+  {
+    std::shared_ptr<SHADER::CShaderTextureGLRef> source;
+    std::shared_ptr<SHADER::CShaderTextureGLRef> target;
   };
 
   // implementation of CRPBaseRenderer
@@ -78,6 +94,8 @@ protected:
 
   virtual void Render(uint8_t alpha);
 
+  std::map<CRenderBufferOpenGL*, std::unique_ptr<RenderBufferTextures>> m_RBTexturesMap;
+
   GLuint m_mainVAO;
   GLuint m_mainVertexVBO;
   GLuint m_mainIndexVBO;
@@ -86,7 +104,7 @@ protected:
   GLuint m_blackbarsVertexVBO;
 
   GLenum m_textureTarget = GL_TEXTURE_2D;
-  float m_clearColour = 0.0f;
+  float m_clearColor = 0.0f;
 };
 } // namespace RETRO
 } // namespace KODI

@@ -46,8 +46,6 @@ public:
 
   bool ResizeWindow(int newWidth, int newHeight, int newLeft, int newTop) override;
   bool SetFullScreen(bool fullScreen, RESOLUTION_INFO& res, bool blankOtherDisplays) override;
-  bool DisplayHardwareScalingEnabled() override;
-  void UpdateDisplayHardwareScaling(const RESOLUTION_INFO& resInfo) override;
 
   void FlipPage(bool rendered, bool videoLayer, bool async);
 
@@ -86,7 +84,7 @@ protected:
   std::shared_ptr<CVideoLayerBridge> m_videoLayerBridge;
 
   CCriticalSection m_resourceSection;
-  std::vector<IDispResource*>  m_resources;
+  std::vector<IDispResource*> m_resources;
 
   bool m_dispReset = false;
   XbmcThreads::EndTime<> m_dispResetTimer;
@@ -98,6 +96,6 @@ private:
   std::unique_ptr<UTILS::CDisplayInfo> m_info;
 };
 
-}
-}
+} // namespace GBM
+} // namespace WINDOWING
 } // namespace KODI

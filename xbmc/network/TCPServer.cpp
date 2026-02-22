@@ -167,7 +167,7 @@ void CTCPServer::Process()
               }
             }
 
-            if (response.size() <= 0)
+            if (response.empty())
               m_connections[i]->PushBuffer(this, buffer, nread);
 
             close = m_connections[i]->Closing();
@@ -505,7 +505,6 @@ CTCPServer::CTCPClient::CTCPClient()
 {
   m_new = true;
   m_announcementflags = ANNOUNCEMENT::ANNOUNCE_ALL;
-  m_socket = INVALID_SOCKET;
   m_beginBrackets = 0;
   m_endBrackets = 0;
   m_beginChar = 0;

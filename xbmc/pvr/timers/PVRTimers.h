@@ -21,7 +21,6 @@ class CDateTime;
 namespace PVR
 {
 enum class TimerOperationResult;
-enum class PVREvent;
 
 class CPVRChannel;
 class CPVRClient;
@@ -81,6 +80,16 @@ public:
      * @brief stop the timer update thread.
      */
   void Stop();
+
+  /*!
+   * @brief Propagate event on system sleep
+   */
+  void OnSleep() override;
+
+  /*!
+   * @brief Propagate event on system wake
+   */
+  void OnWake() override;
 
   /*!
    * @brief Update all timers from PVR database and from given clients.
@@ -265,12 +274,6 @@ public:
      * @brief Update the channel pointers.
      */
   void UpdateChannels();
-
-  /*!
-     * @brief CEventStream callback for PVR events.
-     * @param event The event.
-     */
-  void Notify(const PVREvent& event);
 
   /*!
    * @brief Get a timer tag given it's unique ID

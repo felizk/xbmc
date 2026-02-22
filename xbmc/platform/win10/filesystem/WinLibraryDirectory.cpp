@@ -19,6 +19,7 @@
 #include "platform/win32/CharsetConverter.h"
 
 #include <string>
+#include <utility>
 
 #include <winrt/Windows.Storage.FileProperties.h>
 
@@ -37,7 +38,7 @@ bool CWinLibraryDirectory::GetStoragePath(std::string library, std::string& path
 {
   CURL url;
   url.SetProtocol("win-lib");
-  url.SetHostName(library);
+  url.SetHostName(std::move(library));
 
   if (!IsValid(url))
     return false;
@@ -112,15 +113,14 @@ bool CWinLibraryDirectory::GetDirectory(const CURL& url, CFileItemList& items)
     std::string itemName = FromW(item.Name().c_str());
 
     CFileItemPtr pItem(new CFileItem(itemName));
-    pItem->m_bIsFolder =
-        (item.Attributes() & FileAttributes::Directory) == FileAttributes::Directory;
+    pItem->SetFolder((item.Attributes() & FileAttributes::Directory) == FileAttributes::Directory);
     IStorageItemProperties storageItemProperties = item.as<IStorageItemProperties>();
     if (item != nullptr)
     {
-      pItem->m_strTitle = FromW(storageItemProperties.DisplayName().c_str());
+      pItem->SetTitle(FromW(storageItemProperties.DisplayName().c_str()));
     }
 
-    if (pItem->m_bIsFolder)
+    if (pItem->IsFolder())
       pItem->SetPath(path + itemName + "/");
     else
       pItem->SetPath(path + itemName);
@@ -134,9 +134,9 @@ bool CWinLibraryDirectory::GetDirectory(const CURL& url, CFileItemList& items)
     KODI::TIME::FileTime fileTime2;
     fileTime2.highDateTime = fileTime1.dwHighDateTime;
     fileTime2.lowDateTime = fileTime1.dwLowDateTime;
-    pItem->m_dateTime = fileTime2;
-    if (!pItem->m_bIsFolder)
-      pItem->m_dwSize = static_cast<int64_t>(props.Size());
+    pItem->SetDateTime(fileTime2);
+    if (!pItem->IsFolder())
+      pItem->SetSize(static_cast<int64_t>(props.Size()));
 
     items.Add(pItem);
   }

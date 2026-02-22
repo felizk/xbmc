@@ -11,7 +11,6 @@
 #include "FileItem.h"
 #include "FileItemList.h"
 #include "games/GameUtils.h"
-#include "guilib/LocalizeStrings.h"
 #include "guilib/WindowIDs.h"
 #include "settings/MediaSourceSettings.h"
 #include "utils/StringUtils.h"
@@ -33,7 +32,7 @@ CGUIViewStateWindowGames::CGUIViewStateWindowGames(const CFileItemList& items)
     AddSortMethod(SortByLabel, 551, LABEL_MASKS());
     AddSortMethod(SortByDriveType, 564, LABEL_MASKS());
     SetSortMethod(SortByLabel);
-    SetSortOrder(SortOrderAscending);
+    SetSortOrder(SortOrder::ASCENDING);
     SetViewAsControl(DEFAULT_VIEW_LIST);
   }
   else

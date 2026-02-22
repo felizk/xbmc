@@ -8,9 +8,11 @@
 
 #include "Visualization.h"
 
+#include "ServiceBroker.h"
 #include "filesystem/SpecialProtocol.h"
 #include "guilib/GUIWindowManager.h"
 #include "utils/log.h"
+#include "windowing/WinSystem.h"
 
 using namespace ADDON;
 using namespace KODI::ADDONS;
@@ -174,12 +176,12 @@ bool CVisualization::UpdateTrack(const KODI_ADDON_VISUALIZATION_TRACK* track)
   return false;
 }
 
-bool CVisualization::HasPresets()
+bool CVisualization::HasPresets() const
 {
   return !m_presets.empty();
 }
 
-bool CVisualization::GetPresetList(std::vector<std::string>& vecpresets)
+bool CVisualization::GetPresetList(std::vector<std::string>& vecpresets) const
 {
   vecpresets = m_presets;
   return !m_presets.empty();
@@ -216,7 +218,7 @@ void CVisualization::ClearPresets()
   m_presets.clear();
 }
 
-void CVisualization::GetProperties(struct KODI_ADDON_VISUALIZATION_PROPS* props)
+void CVisualization::GetProperties(struct KODI_ADDON_VISUALIZATION_PROPS* props) const
 {
   if (!props)
     return;

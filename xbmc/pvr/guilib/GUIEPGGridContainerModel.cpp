@@ -128,20 +128,23 @@ void CGUIEPGGridContainerModel::Initialize(const CFileItemList& items,
 
   ////////////////////////////////////////////////////////////////////////
   // Create ruler items
-  CDateTime ruler;
-  ruler.SetFromUTCDateTime(m_gridStart);
-  CDateTime rulerEnd;
-  rulerEnd.SetFromUTCDateTime(m_gridEnd);
-  auto rulerItem{std::make_shared<CFileItem>(ruler.GetAsLocalizedDate(true))};
-  rulerItem->SetProperty("DateLabel", true);
-  m_rulerItems.emplace_back(rulerItem);
 
+  // 1) ruler date item
+  CDateTime rulerDateLocal;
+  rulerDateLocal.SetFromUTCDateTime(m_gridStart);
+  auto rulerDateItem{std::make_shared<CFileItem>(rulerDateLocal.GetAsLocalizedDate(true))};
+  rulerDateItem->SetProperty("DateLabel", true);
+  m_rulerItems.emplace_back(std::move(rulerDateItem));
+
+  // 2) ruler time items
   const CDateTimeSpan unit(0, 0, blocksPerRulerItem * m_minutesPerBlock, 0);
-  for (; ruler < rulerEnd; ruler += unit)
+  CDateTime rulerLocal;
+  for (CDateTime rulerUTC = m_gridStart; rulerUTC < m_gridEnd; rulerUTC += unit)
   {
-    rulerItem = std::make_shared<CFileItem>(ruler.GetAsLocalizedTime("", false));
-    rulerItem->SetLabel2(ruler.GetAsLocalizedDate(true));
-    m_rulerItems.emplace_back(rulerItem);
+    rulerLocal.SetFromUTCDateTime(rulerUTC);
+    auto rulerItem{std::make_shared<CFileItem>(rulerLocal.GetAsLocalizedTime("", false))};
+    rulerItem->SetLabel2(rulerLocal.GetAsLocalizedDate(true));
+    m_rulerItems.emplace_back(std::move(rulerItem));
   }
 
   m_firstActiveChannel = iFirstChannel;
@@ -546,7 +549,7 @@ bool CGUIEPGGridContainerModel::FreeProgrammeMemory(int firstChannel,
     {
       auto it = m_epgItems.find(i);
       if (it == m_epgItems.end())
-        it = m_epgItems.insert({i, EpgTags()}).first;
+        it = m_epgItems.try_emplace(i).first;
 
       if (blocksChanged || i < m_firstActiveChannel || i > m_lastActiveChannel)
       {
@@ -661,7 +664,8 @@ int CGUIEPGGridContainerModel::GetFirstEventBlock(
     diff = (eventStart - m_gridStart).GetSecondsTotal();
 
   // First block of a tag is always the block calculated using event's start time, rounded up.
-  float fBlockIndex = diff / 60.0f / m_minutesPerBlock;
+  const float fBlockIndex =
+      static_cast<float>(diff) / 60.0f / static_cast<float>(m_minutesPerBlock);
   return static_cast<int>(std::ceil(fBlockIndex));
 }
 

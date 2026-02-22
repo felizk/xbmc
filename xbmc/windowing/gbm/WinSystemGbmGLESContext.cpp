@@ -38,8 +38,9 @@ using namespace KODI::WINDOWING::GBM;
 using namespace std::chrono_literals;
 
 CWinSystemGbmGLESContext::CWinSystemGbmGLESContext()
-: CWinSystemGbmEGLContext(EGL_PLATFORM_GBM_MESA, "EGL_MESA_platform_gbm")
-{}
+  : CWinSystemGbmEGLContext(EGL_PLATFORM_GBM_MESA, "EGL_MESA_platform_gbm")
+{
+}
 
 void CWinSystemGbmGLESContext::Register()
 {
@@ -97,10 +98,11 @@ bool CWinSystemGbmGLESContext::InitWindowSystem()
   return true;
 }
 
-bool CWinSystemGbmGLESContext::SetFullScreen(bool fullScreen, RESOLUTION_INFO& res, bool blankOtherDisplays)
+bool CWinSystemGbmGLESContext::SetFullScreen(bool fullScreen,
+                                             RESOLUTION_INFO& res,
+                                             bool blankOtherDisplays)
 {
-  if (res.iWidth != m_nWidth ||
-      res.iHeight != m_nHeight)
+  if (res.iWidth != m_nWidth || res.iHeight != m_nHeight)
   {
     CLog::Log(LOGDEBUG, "CWinSystemGbmGLESContext::{} - resolution changed, creating a new window",
               __FUNCTION__);
@@ -126,10 +128,11 @@ void CWinSystemGbmGLESContext::PresentRender(bool rendered, bool videoLayer)
 
   if (rendered || videoLayer)
   {
+    bool async = !videoLayer && m_eglFence;
     if (rendered)
     {
 #if defined(EGL_ANDROID_native_fence_sync) && defined(EGL_KHR_fence_sync)
-      if (m_eglFence)
+      if (async)
       {
         int fd = m_DRM->TakeOutFenceFd();
         if (fd != -1)
@@ -149,7 +152,7 @@ void CWinSystemGbmGLESContext::PresentRender(bool rendered, bool videoLayer)
       }
 
 #if defined(EGL_ANDROID_native_fence_sync) && defined(EGL_KHR_fence_sync)
-      if (m_eglFence)
+      if (async)
       {
         int fd = m_eglFence->FlushFence();
         m_DRM->SetInFenceFd(fd);
@@ -159,7 +162,7 @@ void CWinSystemGbmGLESContext::PresentRender(bool rendered, bool videoLayer)
 #endif
     }
 
-    CWinSystemGbm::FlipPage(rendered, videoLayer, static_cast<bool>(m_eglFence));
+    CWinSystemGbm::FlipPage(rendered, videoLayer, async);
 
     if (m_dispReset && m_dispResetTimer.IsTimePast())
     {

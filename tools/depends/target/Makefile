@@ -7,9 +7,7 @@ endif
 # Keep in alphabetical order
 DEPENDS = \
   bzip2 \
-  dav1d \
   expat \
-  ffmpeg \
   fontconfig \
   freetype2 \
   freetype2-noharfbuzz \
@@ -26,13 +24,11 @@ DEPENDS = \
   libgpg-error \
   libjpeg-turbo \
   liblzo2 \
-  libmicrohttpd \
   libplist \
   libpng \
   libshairplay \
   libusb \
   libxml2 \
-  mariadb \
   nettle \
   openssl \
   python3 \
@@ -50,10 +46,8 @@ else
   DEPENDS+=samba libcdio
 endif
 
-FONTCONFIG=fontconfig
 ifeq ($(OS),darwin_embedded)
-  EXCLUDED_DEPENDS = libusb gtest
-  FONTCONFIG=
+  EXCLUDED_DEPENDS = libusb gtest libcdio libcdio-gplv3
   ifeq ($(TARGET_PLATFORM),appletvos)
     EXCLUDED_DEPENDS += libshairplay libplist
   endif
@@ -61,7 +55,6 @@ ifeq ($(OS),darwin_embedded)
 endif
 
 ifeq ($(OS),osx)
-  FONTCONFIG=
   EXCLUDED_DEPENDS = libusb
   DEPENDS += smctemp libaacs libbdplus apache-ant
   LIBAACS = libaacs
@@ -70,7 +63,7 @@ ifeq ($(OS),osx)
 endif
 
 ifeq ($(OS),android)
-  EXCLUDED_DEPENDS = libusb gtest
+  EXCLUDED_DEPENDS = libusb gtest libcdio libcdio-gplv3
   DEPENDS += dummy-libxbmc libdovi libuuid
   PYMODULE_DEPS = dummy-libxbmc
   LIBUUID = libuuid
@@ -91,6 +84,10 @@ endif
 ALSA_LIB=
 ifeq ($(OS),linux)
   DEPENDS += dbus libuuid alsa-lib libdrm libxkbcommon libinput libudev libevdev mtdev pipewire
+
+  # CI purposes only. Use linux/webos targets to test tools/depends makefile builds
+  DEPENDS += dav1d ffmpeg
+
   ALSA_LIB = alsa-lib
   LIBUUID = libuuid
 
@@ -129,7 +126,7 @@ ifeq ($(OS),linux)
 
   ifeq ($(TARGET_PLATFORM),webos)
     DEPENDS += libdovi wayland waylandpp wayland-protocols webos-wayland-extensions webos-userland
-    EXCLUDED_DEPENDS += dbus linux-system-x11-libs pipewire mesa
+    EXCLUDED_DEPENDS += dbus mtdev libevdev libinput linux-system-x11-libs pipewire mesa
   endif
 
   ifneq (,$(findstring gbm,$(TARGET_PLATFORM)))
@@ -163,7 +160,7 @@ gettext: $(ICONV)
 gnutls: nettle $(ZLIB)
 harfbuzz: freetype2-noharfbuzz $(ICONV)
 libaacs: libgcrypt libgpg-error
-libass: $(FONTCONFIG) fribidi harfbuzz freetype2 $(ICONV)
+libass: fontconfig fribidi harfbuzz freetype2 $(ICONV)
 libbdplus: libaacs libgcrypt libgpg-error
 libbluray: fontconfig freetype2 $(ICONV) udfread libxml2 $(LIBAACS) $(LIBDPLUS) $(APACHEANT)
 libcdio-gplv3: $(ICONV)

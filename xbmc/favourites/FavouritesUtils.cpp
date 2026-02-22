@@ -9,14 +9,17 @@
 #include "FavouritesUtils.h"
 
 #include "FileItem.h"
+#include "FileItemList.h"
 #include "ServiceBroker.h"
 #include "dialogs/GUIDialogFileBrowser.h"
+#include "favourites/FavouritesService.h"
 #include "favourites/FavouritesURL.h"
 #include "favourites/GUIWindowFavourites.h"
 #include "guilib/GUIComponent.h"
 #include "guilib/GUIKeyboardFactory.h"
 #include "guilib/GUIWindowManager.h"
-#include "guilib/LocalizeStrings.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "storage/MediaManager.h"
 #include "utils/Variant.h"
 #include "utils/guilib/GUIBuiltinsUtils.h"
@@ -31,8 +34,9 @@ namespace FAVOURITES_UTILS
 bool ChooseAndSetNewName(CFileItem& item)
 {
   std::string label = item.GetLabel();
-  if (CGUIKeyboardFactory::ShowAndGetInput(label, CVariant{g_localizeStrings.Get(16008)},
-                                           false)) // Enter new title
+  if (CGUIKeyboardFactory::ShowAndGetInput(
+          label, CVariant{CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(16008)},
+          false)) // Enter new title
   {
     item.SetLabel(label);
     return true;
@@ -47,20 +51,24 @@ bool ChooseAndSetNewThumbnail(CFileItem& item)
   {
     const auto current = std::make_shared<CFileItem>("thumb://Current", false);
     current->SetArt("thumb", item.GetArt("thumb"));
-    current->SetLabel(g_localizeStrings.Get(20016)); // Current thumb
+    current->SetLabel(
+        CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20016)); // Current thumb
     prefilledItems.Add(current);
   }
 
   const auto none = std::make_shared<CFileItem>("thumb://None", false);
   none->SetArt("icon", item.GetArt("icon"));
-  none->SetLabel(g_localizeStrings.Get(20018)); // No thumb
+  none->SetLabel(
+      CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(20018)); // No thumb
   prefilledItems.Add(none);
 
   std::string thumb;
   std::vector<CMediaSource> sources;
   CServiceBroker::GetMediaManager().GetLocalDrives(sources);
-  if (CGUIDialogFileBrowser::ShowAndGetImage(prefilledItems, sources, g_localizeStrings.Get(1030),
-                                             thumb)) // Browse for image
+  if (CGUIDialogFileBrowser::ShowAndGetImage(
+          prefilledItems, sources,
+          CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(1030),
+          thumb)) // Browse for image
   {
     item.SetArt("thumb", thumb);
     return true;

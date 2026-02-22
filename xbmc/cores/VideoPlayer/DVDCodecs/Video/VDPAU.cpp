@@ -16,12 +16,14 @@
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderManager.h"
 #include "guilib/TextureManager.h"
+#include "rendering/GLExtensions.h"
 #include "rendering/RenderSystem.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "settings/lib/Setting.h"
 #include "utils/MathUtils.h"
+#include "utils/StringUtils.h"
 #include "utils/TimeUtils.h"
 #include "utils/log.h"
 #include "windowing/GraphicContext.h"
@@ -353,7 +355,7 @@ void CVideoSurfaces::AddSurface(VdpVideoSurface surf)
 void CVideoSurfaces::ClearReference(VdpVideoSurface surf)
 {
   std::unique_lock lock(m_section);
-  if (m_state.find(surf) == m_state.end())
+  if (!m_state.contains(surf))
   {
     CLog::Log(LOGWARNING, "CVideoSurfaces::ClearReference - surface invalid");
     return;
@@ -368,13 +370,13 @@ void CVideoSurfaces::ClearReference(VdpVideoSurface surf)
 bool CVideoSurfaces::MarkRender(VdpVideoSurface surf)
 {
   std::unique_lock lock(m_section);
-  if (m_state.find(surf) == m_state.end())
+  if (!m_state.contains(surf))
   {
     CLog::Log(LOGWARNING, "CVideoSurfaces::MarkRender - surface invalid");
     return false;
   }
   std::list<VdpVideoSurface>::iterator it;
-  it = std::find(m_freeSurfaces.begin(), m_freeSurfaces.end(), surf);
+  it = std::ranges::find(m_freeSurfaces, surf);
   if (it != m_freeSurfaces.end())
   {
     m_freeSurfaces.erase(it);
@@ -386,7 +388,7 @@ bool CVideoSurfaces::MarkRender(VdpVideoSurface surf)
 void CVideoSurfaces::ClearRender(VdpVideoSurface surf)
 {
   std::unique_lock lock(m_section);
-  if (m_state.find(surf) == m_state.end())
+  if (!m_state.contains(surf))
   {
     CLog::Log(LOGWARNING, "CVideoSurfaces::ClearRender - surface invalid");
     return;
@@ -401,7 +403,7 @@ void CVideoSurfaces::ClearRender(VdpVideoSurface surf)
 bool CVideoSurfaces::IsValid(VdpVideoSurface surf)
 {
   std::unique_lock lock(m_section);
-  if (m_state.find(surf) != m_state.end())
+  if (m_state.contains(surf))
     return true;
   else
     return false;
@@ -410,10 +412,10 @@ bool CVideoSurfaces::IsValid(VdpVideoSurface surf)
 VdpVideoSurface CVideoSurfaces::GetFree(VdpVideoSurface surf)
 {
   std::unique_lock lock(m_section);
-  if (m_state.find(surf) != m_state.end())
+  if (m_state.contains(surf))
   {
     std::list<VdpVideoSurface>::iterator it;
-    it = std::find(m_freeSurfaces.begin(), m_freeSurfaces.end(), surf);
+    it = std::ranges::find(m_freeSurfaces, surf);
     if (it == m_freeSurfaces.end())
     {
       CLog::Log(LOGWARNING, "CVideoSurfaces::GetFree - surface not free");
@@ -450,7 +452,7 @@ VdpVideoSurface CVideoSurfaces::RemoveNext(bool skiprender)
     m_state.erase(surf);
 
     std::list<VdpVideoSurface>::iterator it2;
-    it2 = std::find(m_freeSurfaces.begin(), m_freeSurfaces.end(), surf);
+    it2 = std::ranges::find(m_freeSurfaces, surf);
     if (it2 != m_freeSurfaces.end())
       m_freeSurfaces.erase(it2);
     return surf;
@@ -499,7 +501,7 @@ bool CDecoder::Open(AVCodecContext* avctx, AVCodecContext* mainctx, const enum A
 
   // check if user wants to decode this format with VDPAU
   std::string gpuvendor = CServiceBroker::GetRenderSystem()->GetRenderVendor();
-  std::transform(gpuvendor.begin(), gpuvendor.end(), gpuvendor.begin(), ::tolower);
+  StringUtils::ToLower(gpuvendor);
   // nvidia is whitelisted despite for mpeg-4 we need to query user settings
   if ((gpuvendor.compare(0, 6, "nvidia") != 0)  || (avctx->codec_id == AV_CODEC_ID_MPEG4) || (avctx->codec_id == AV_CODEC_ID_H263))
   {
@@ -535,7 +537,7 @@ bool CDecoder::Open(AVCodecContext* avctx, AVCodecContext* mainctx, const enum A
     }
   }
 
-  if (!CServiceBroker::GetRenderSystem()->IsExtSupported("GL_NV_vdpau_interop"))
+  if (!CGLExtensions::IsExtensionSupported(CGLExtensions::NV_vdpau_interop))
   {
     CLog::Log(LOGINFO, "VDPAU::Open: required extension GL_NV_vdpau_interop not found");
     return false;
@@ -922,7 +924,7 @@ bool CDecoder::ConfigVDPAU(AVCodecContext* avctx, int ref_frames)
   }
   else if (avctx->codec_id == AV_CODEC_ID_VP9)
   {
-    if (avctx->profile != FF_PROFILE_VP9_0)
+    if (avctx->profile != AV_PROFILE_VP9_0)
       return false;
 
     m_vdpauConfig.maxReferences = 8;
@@ -1333,7 +1335,7 @@ void CDecoder::Register()
   CDVDFactoryCodec::RegisterHWAccel("vdpau", CDecoder::Create);
 
   std::string gpuvendor = CServiceBroker::GetRenderSystem()->GetRenderVendor();
-  std::transform(gpuvendor.begin(), gpuvendor.end(), gpuvendor.begin(), ::tolower);
+  StringUtils::ToLower(gpuvendor);
   bool isNvidia = (gpuvendor.compare(0, 6, "nvidia") == 0);
 
   auto settingsComponent = CServiceBroker::GetSettingsComponent();
@@ -1707,9 +1709,8 @@ void CMixer::StateMachine(int signal, Protocol *port, Message *msg)
             m_state = M_TOP_CONFIGURED_STEP1;
             m_bStateMachineSelfTrigger = true;
           }
-          else if (!m_outputSurfaces.empty() &&
-                   m_config.stats->IsDraining() &&
-                   m_mixerInput.size() >= 1)
+          else if (!m_outputSurfaces.empty() && m_config.stats->IsDraining() &&
+                   !m_mixerInput.empty())
           {
             CVdpauDecodedPicture pic;
             pic.DVDPic.SetParams(m_mixerInput[0].DVDPic);
@@ -2664,8 +2665,7 @@ void CMixer::FiniCycle()
   // NVidia recommends num_ref + 5
   size_t surfToKeep = 5;
 
-  if (m_mixerInput.size() > 0 &&
-      (m_mixerInput[0].videoSurface == VDP_INVALID_HANDLE))
+  if (!m_mixerInput.empty() && (m_mixerInput[0].videoSurface == VDP_INVALID_HANDLE))
     surfToKeep = 1;
 
   while (m_mixerInput.size() > surfToKeep)

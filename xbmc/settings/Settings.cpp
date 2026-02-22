@@ -19,13 +19,10 @@
 #include "guilib/GUIFontManager.h"
 #include "guilib/StereoscopicsManager.h"
 #include "input/keyboard/KeyboardLayoutManager.h"
+#include "network/WakeOnAccess.h"
+#include "network/upnp/UPnPSettings.h"
 
 #include <mutex>
-#include "network/upnp/UPnPSettings.h"
-#include "network/WakeOnAccess.h"
-#if defined(TARGET_DARWIN_OSX) and defined(HAS_XBMCHELPER)
-#include "platform/darwin/osx/XBMCHelper.h"
-#endif // defined(TARGET_DARWIN_OSX)
 #if defined(TARGET_DARWIN_TVOS)
 #include "platform/darwin/tvos/TVOSSettingsHandler.h"
 #endif // defined(TARGET_DARWIN_TVOS)
@@ -94,7 +91,7 @@ bool CSettings::Initialize()
 
 void CSettings::RegisterSubSettings(ISubSettings* subSettings)
 {
-  if (subSettings == nullptr)
+  if (!subSettings)
     return;
 
   std::unique_lock lock(m_critical);
@@ -103,7 +100,7 @@ void CSettings::RegisterSubSettings(ISubSettings* subSettings)
 
 void CSettings::UnregisterSubSettings(ISubSettings* subSettings)
 {
-  if (subSettings == nullptr)
+  if (!subSettings)
     return;
 
   std::unique_lock lock(m_critical);
@@ -152,14 +149,14 @@ bool CSettings::Save()
   return Save(profileManager->GetSettingsFile());
 }
 
-bool CSettings::Save(const std::string &file)
+bool CSettings::Save(const std::string& file) const
 {
   CXBMCTinyXML xmlDoc;
   if (!SaveValuesToXml(xmlDoc))
     return false;
 
   TiXmlElement* root = xmlDoc.RootElement();
-  if (root == nullptr)
+  if (!root)
     return false;
 
   if (!Save(root))
@@ -181,7 +178,7 @@ bool CSettings::Save(TiXmlNode* root) const
   return true;
 }
 
-bool CSettings::LoadSetting(const TiXmlNode *node, const std::string &settingId)
+bool CSettings::LoadSetting(const TiXmlNode* node, const std::string& settingId) const
 {
   return GetSettingsManager()->LoadSetting(node, settingId);
 }
@@ -211,7 +208,7 @@ void CSettings::Clear()
 
 bool CSettings::Load(const TiXmlElement* root, bool& updated)
 {
-  if (root == nullptr)
+  if (!root)
     return false;
 
   if (!CSettingsBase::LoadValuesFromXml(root, updated))
@@ -268,16 +265,17 @@ bool CSettings::InitializeDefinitions()
 #elif defined(TARGET_FREEBSD)
   if (CFile::Exists(SETTINGS_XML_FOLDER "freebsd.xml") && !Initialize(SETTINGS_XML_FOLDER "freebsd.xml"))
     CLog::Log(LOGFATAL, "Unable to load freebsd-specific settings definitions");
+#elif defined(TARGET_WEBOS)
+  if (CFile::Exists(SETTINGS_XML_FOLDER "webos.xml") &&
+      !Initialize(SETTINGS_XML_FOLDER "webos.xml"))
+    CLog::Log(LOGFATAL, "Unable to load webOS-specific settings definitions");
 #elif defined(TARGET_LINUX)
   if (CFile::Exists(SETTINGS_XML_FOLDER "linux.xml") && !Initialize(SETTINGS_XML_FOLDER "linux.xml"))
     CLog::Log(LOGFATAL, "Unable to load linux-specific settings definitions");
 #elif defined(TARGET_DARWIN)
   if (CFile::Exists(SETTINGS_XML_FOLDER "darwin.xml") && !Initialize(SETTINGS_XML_FOLDER "darwin.xml"))
     CLog::Log(LOGFATAL, "Unable to load darwin-specific settings definitions");
-#if defined(TARGET_DARWIN_OSX)
-  if (CFile::Exists(SETTINGS_XML_FOLDER "darwin_osx.xml") && !Initialize(SETTINGS_XML_FOLDER "darwin_osx.xml"))
-    CLog::Log(LOGFATAL, "Unable to load osx-specific settings definitions");
-#elif defined(TARGET_DARWIN_IOS)
+#if defined(TARGET_DARWIN_IOS)
   if (CFile::Exists(SETTINGS_XML_FOLDER "darwin_ios.xml") && !Initialize(SETTINGS_XML_FOLDER "darwin_ios.xml"))
     CLog::Log(LOGFATAL, "Unable to load ios-specific settings definitions");
 #elif defined(TARGET_DARWIN_TVOS)
@@ -335,7 +333,8 @@ void CSettings::InitializeDefaults()
   // the front
   if (g_sysinfo.IsAeroDisabled())
   {
-    auto setting = GetSettingsManager()->GetSetting(CSettings::SETTING_VIDEOSCREEN_FAKEFULLSCREEN);
+    const SettingPtr setting =
+        GetSettingsManager()->GetSetting(CSettings::SETTING_VIDEOSCREEN_FAKEFULLSCREEN);
     if (!setting)
       CLog::Log(LOGERROR, "Failed to load setting for: {}",
                 CSettings::SETTING_VIDEOSCREEN_FAKEFULLSCREEN);
@@ -346,7 +345,7 @@ void CSettings::InitializeDefaults()
 
   if (CServiceBroker::GetAppParams()->IsStandAlone())
   {
-    auto setting =
+    const SettingPtr setting =
         GetSettingsManager()->GetSetting(CSettings::SETTING_POWERMANAGEMENT_SHUTDOWNSTATE);
     if (!setting)
       CLog::Log(LOGERROR, "Failed to load setting for: {}",
@@ -360,7 +359,8 @@ void CSettings::InitializeDefaults()
   if (deviceUUID->GetValue().empty())
   {
     const std::string& uuid = StringUtils::CreateUUID();
-    auto setting = GetSettingsManager()->GetSetting(CSettings::SETTING_SERVICES_DEVICEUUID);
+    const SettingPtr setting =
+        GetSettingsManager()->GetSetting(CSettings::SETTING_SERVICES_DEVICEUUID);
     if (!setting)
       CLog::Log(LOGERROR, "Failed to load setting for: {}", CSettings::SETTING_SERVICES_DEVICEUUID);
     else
@@ -487,14 +487,16 @@ void CSettings::InitializeConditions()
   CSettingConditions::Initialize();
 
   // add basic conditions
-  const std::set<std::string> &simpleConditions = CSettingConditions::GetSimpleConditions();
-  for (std::set<std::string>::const_iterator itCondition = simpleConditions.begin(); itCondition != simpleConditions.end(); ++itCondition)
-    GetSettingsManager()->AddCondition(*itCondition);
+  const CSettingConditions::SimpleConditions& simpleConditions =
+      CSettingConditions::GetSimpleConditions();
+  for (const auto& simpleCondition : simpleConditions)
+    GetSettingsManager()->AddCondition(simpleCondition);
 
   // add more complex conditions
-  const std::map<std::string, SettingConditionCheck> &complexConditions = CSettingConditions::GetComplexConditions();
-  for (std::map<std::string, SettingConditionCheck>::const_iterator itCondition = complexConditions.begin(); itCondition != complexConditions.end(); ++itCondition)
-    GetSettingsManager()->AddDynamicCondition(itCondition->first, itCondition->second);
+  const CSettingConditions::ComplexConditions& complexConditions =
+      CSettingConditions::GetComplexConditions();
+  for (const auto& [identifier, condition] : complexConditions)
+    GetSettingsManager()->AddDynamicCondition(identifier, condition);
 }
 
 void CSettings::UninitializeConditions()
@@ -588,12 +590,6 @@ void CSettings::InitializeISettingCallbacks()
   GetSettingsManager()->RegisterCallback(&CRssManager::GetInstance(),
                                          {CSettings::SETTING_LOOKANDFEEL_RSSEDIT});
 
-#if defined(TARGET_DARWIN_OSX) and defined(HAS_XBMCHELPER)
-  GetSettingsManager()->RegisterCallback(
-      &XBMCHelper::GetInstance(),
-      {CSettings::SETTING_INPUT_APPLEREMOTEMODE, CSettings::SETTING_INPUT_APPLEREMOTEALWAYSON});
-#endif
-
 #if defined(TARGET_DARWIN_TVOS)
   GetSettingsManager()->RegisterCallback(&CTVOSInputSettings::GetInstance(),
                                          {CSettings::SETTING_INPUT_SIRIREMOTEIDLETIMERENABLED,
@@ -625,9 +621,6 @@ void CSettings::UninitializeISettingCallbacks()
   GetSettingsManager()->UnregisterCallback(&g_langInfo);
   GetSettingsManager()->UnregisterCallback(&g_passwordManager);
   GetSettingsManager()->UnregisterCallback(&CRssManager::GetInstance());
-#if defined(TARGET_DARWIN_OSX) and defined(HAS_XBMCHELPER)
-  GetSettingsManager()->UnregisterCallback(&XBMCHelper::GetInstance());
-#endif
   GetSettingsManager()->UnregisterCallback(&CWakeOnAccess::GetInstance());
 #ifdef HAVE_LIBBLURAY
   GetSettingsManager()->UnregisterCallback(&CDiscSettings::GetInstance());

@@ -18,7 +18,7 @@ if(NOT TARGET ${APP_NAME_LC}::${CMAKE_FIND_PACKAGE_NAME})
   # Check for existing libcec. If version >= LIBBLURAY-VERSION file version, dont build
   find_package(libbluray ${CONFIG_${CMAKE_FIND_PACKAGE_NAME}_FIND_SPEC} CONFIG ${SEARCH_QUIET}
                          HINTS ${DEPENDS_PATH}/lib/cmake
-                         ${${CORE_PLATFORM_NAME_LC}_SEARCH_CONFIG})
+                         ${${CORE_SYSTEM_NAME}_SEARCH_CONFIG})
 
   # cmake config may not be available (eg Debian libbluray-dev package)
   # fallback to pkgconfig for non windows platforms
@@ -57,6 +57,10 @@ if(NOT TARGET ${APP_NAME_LC}::${CMAKE_FIND_PACKAGE_NAME})
   include(SelectLibraryConfigurations)
   select_library_configurations(BLURAY)
   unset(BLURAY_LIBRARIES)
+
+  if(NOT VERBOSE_FIND)
+     set(${CMAKE_FIND_PACKAGE_NAME}_FIND_QUIETLY TRUE)
+   endif()
 
   include(FindPackageHandleStandardArgs)
   find_package_handle_standard_args(Bluray

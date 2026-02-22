@@ -13,10 +13,10 @@
 #if defined(HAS_MDNS)
 #include "mdns/ZeroconfMDNS.h"
 #endif
+#include "jobs/JobManager.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
 #include "threads/CriticalSection.h"
-#include "utils/JobManager.h"
 
 #if defined(TARGET_ANDROID)
 #include "platform/android/network/ZeroconfAndroid.h"
@@ -106,7 +106,7 @@ bool CZeroconf::ForceReAnnounceService(const std::string& fcr_identifier)
 
 bool CZeroconf::HasService(const std::string& fcr_identifier) const
 {
-  return (m_service_map.find(fcr_identifier) != m_service_map.end());
+  return (m_service_map.contains(fcr_identifier));
 }
 
 bool CZeroconf::Start()

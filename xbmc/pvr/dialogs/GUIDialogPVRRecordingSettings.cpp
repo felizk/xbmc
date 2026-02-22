@@ -11,11 +11,12 @@
 #include "FileItem.h"
 #include "ServiceBroker.h"
 #include "guilib/GUIMessage.h"
-#include "guilib/LocalizeStrings.h"
 #include "messaging/helpers/DialogHelper.h"
 #include "pvr/PVRManager.h"
 #include "pvr/addons/PVRClient.h"
 #include "pvr/recordings/PVRRecording.h"
+#include "resources/LocalizeStrings.h"
+#include "resources/ResourcesComponent.h"
 #include "settings/dialogs/GUIDialogSettingsBase.h"
 #include "settings/lib/Setting.h"
 #include "utils/StringUtils.h"
@@ -103,8 +104,11 @@ void CGUIDialogPVRRecordingSettings::InitializeSettings()
 
   // Lifetime
   if (client && client->GetClientCapabilities().SupportsRecordingsLifetimeChange())
-    setting = AddList(group, SETTING_RECORDING_LIFETIME, 19083, SettingLevel::Basic, m_iLifetime,
-                      LifetimesFiller, 19083);
+    setting = AddList(
+        group, SETTING_RECORDING_LIFETIME, 19083, SettingLevel::Basic, m_iLifetime,
+        [this](const std::shared_ptr<const CSetting>& s, std::vector<IntegerSettingOption>& list,
+               int& current) { LifetimesFiller(s, list, current); },
+        19083);
 }
 
 bool CGUIDialogPVRRecordingSettings::CanEditRecording(const CFileItem& item)
@@ -137,9 +141,11 @@ bool CGUIDialogPVRRecordingSettings::OnSettingChanging(
   {
     int iNewLifetime = std::static_pointer_cast<const CSettingInt>(setting)->GetValue();
     if (m_recording->WillBeExpiredWithNewLifetime(iNewLifetime) &&
-        HELPERS::ShowYesNoDialogText(CVariant{19068}, // "Recording settings"
-                                     StringUtils::Format(g_localizeStrings.Get(19147),
-                                                         iNewLifetime)) // "Setting the lifetime..."
+        HELPERS::ShowYesNoDialogText(
+            CVariant{19068}, // "Recording settings"
+            StringUtils::Format(
+                CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(19147),
+                iNewLifetime)) // "Setting the lifetime..."
             != HELPERS::DialogResponse::CHOICE_YES)
     {
       return false;
@@ -192,43 +198,38 @@ bool CGUIDialogPVRRecordingSettings::Save()
 
 void CGUIDialogPVRRecordingSettings::LifetimesFiller(const SettingConstPtr& setting,
                                                      std::vector<IntegerSettingOption>& list,
-                                                     int& current,
-                                                     void* data)
+                                                     int& current) const
 {
-  auto* pThis{static_cast<const CGUIDialogPVRRecordingSettings*>(data)};
-  if (pThis)
+  list.clear();
+
+  const std::shared_ptr<const CPVRClient> client =
+      CServiceBroker::GetPVRManager().GetClient(m_recording->ClientID());
+  if (client)
   {
-    list.clear();
-
-    const std::shared_ptr<const CPVRClient> client =
-        CServiceBroker::GetPVRManager().GetClient(pThis->m_recording->ClientID());
-    if (client)
-    {
-      std::vector<std::pair<std::string, int>> values;
-      client->GetClientCapabilities().GetRecordingsLifetimeValues(values);
-      std::ranges::transform(values, std::back_inserter(list),
-                             [](const auto& value)
-                             { return IntegerSettingOption(value.first, value.second); });
-    }
-
-    current = pThis->m_iLifetime;
-
-    auto it = list.begin();
-    while (it != list.end())
-    {
-      if (it->value == current)
-        break; // value already in list
-
-      ++it;
-    }
-
-    if (it == list.end())
-    {
-      // PVR backend supplied value is not in the list of predefined values. Insert it.
-      list.emplace(it, StringUtils::Format(g_localizeStrings.Get(17999), current) /* {} days */,
-                   current);
-    }
+    std::vector<std::pair<std::string, int>> values;
+    client->GetClientCapabilities().GetRecordingsLifetimeValues(values);
+    std::ranges::transform(values, std::back_inserter(list), [](const auto& value)
+                           { return IntegerSettingOption(value.first, value.second); });
   }
-  else
-    CLog::LogF(LOGERROR, "No dialog");
+
+  current = m_iLifetime;
+
+  auto it = list.begin();
+  while (it != list.end())
+  {
+    if (it->value == current)
+      break; // value already in list
+
+    ++it;
+  }
+
+  if (it == list.end())
+  {
+    // PVR backend supplied value is not in the list of predefined values. Insert it.
+    list.emplace(
+        it,
+        StringUtils::Format(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(17999),
+                            current) /* {} days */,
+        current);
+  }
 }

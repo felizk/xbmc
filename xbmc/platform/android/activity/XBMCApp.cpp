@@ -755,7 +755,7 @@ int CXBMCApp::android_printf(const char* format, ...)
     std::string message;
     int len = vsnprintf(0, 0, format, args_copy);
     message.resize(len);
-    result = vsnprintf(&message[0], len + 1, format, args);
+    result = vsnprintf(message.data(), len + 1, format, args);
     CLog::Log(LOGDEBUG, "{}", message);
   }
   else
@@ -1377,7 +1377,7 @@ void CXBMCApp::onNewIntent(CJNIIntent intent)
       CFileItem* item = new CFileItem(targetFile, false);
       if (IsVideoDb(*item))
       {
-        *(item->GetVideoInfoTag()) = XFILE::CVideoDatabaseFile::GetVideoTag(CURL(item->GetPath()));
+        *(item->GetVideoInfoTag()) = XFILE::CVideoDatabaseFile::GetVideoTag(item->GetURL());
         item->SetPath(item->GetVideoInfoTag()->m_strFileNameAndPath);
       }
       CServiceBroker::GetAppMessenger()->PostMsg(TMSG_MEDIA_PLAY, 0, 0, static_cast<void*>(item));

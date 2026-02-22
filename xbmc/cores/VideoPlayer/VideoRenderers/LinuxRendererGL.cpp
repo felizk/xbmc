@@ -22,6 +22,7 @@
 #include "cores/IPlayer.h"
 #include "cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodec.h"
 #include "cores/VideoPlayer/VideoRenderers/RenderFlags.h"
+#include "rendering/GLExtensions.h"
 #include "rendering/MatrixGL.h"
 #include "rendering/gl/RenderSystemGL.h"
 #include "settings/AdvancedSettings.h"
@@ -248,7 +249,7 @@ bool CLinuxRendererGL::Configure(const VideoPicture &picture, float fps, unsigne
   m_nonLinStretchGui = false;
   m_pixelRatio = 1.0;
 
-  m_pboSupported = CServiceBroker::GetRenderSystem()->IsExtSupported("GL_ARB_pixel_buffer_object");
+  m_pboSupported = CGLExtensions::IsExtensionSupported(CGLExtensions::ARB_pixel_buffer_object);
 
   // setup the background colour
   m_clearColour = CServiceBroker::GetWinSystem()->UseLimitedColor() ? (16.0f / 0xff) : 0.0f;
@@ -1245,7 +1246,7 @@ void CLinuxRendererGL::RenderSinglePass(int index, int field)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexVBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLubyte)*4, idx, GL_STATIC_DRAW);
 
-  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, nullptr);
   VerifyGLState();
 
   glDisableVertexAttribArray(vertLoc);
@@ -1456,7 +1457,7 @@ void CLinuxRendererGL::RenderToFBO(int index, int field, bool weave /*= false*/)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexVBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLubyte)*4, idx, GL_STATIC_DRAW);
 
-  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, nullptr);
   VerifyGLState();
 
   glDisableVertexAttribArray(vertLoc);
@@ -1579,7 +1580,7 @@ void CLinuxRendererGL::RenderFromFBO()
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexVBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLubyte)*4, idx, GL_STATIC_DRAW);
 
-  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, nullptr);
   VerifyGLState();
 
   glDisableVertexAttribArray(loc);
@@ -1720,7 +1721,7 @@ void CLinuxRendererGL::RenderRGB(int index, int field)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexVBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLubyte)*4, idx, GL_STATIC_DRAW);
 
-  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0);
+  glDrawElements(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, nullptr);
 
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glDeleteBuffers(1, &vertexVBO);
@@ -2634,7 +2635,7 @@ bool CLinuxRendererGL::Supports(ERENDERFEATURE feature) const
 
 bool CLinuxRendererGL::SupportsMultiPassRendering()
 {
-  return m_renderSystem->IsExtSupported("GL_EXT_framebuffer_object");
+  return CGLExtensions::IsExtensionSupported(CGLExtensions::EXT_framebuffer_object);
 }
 
 bool CLinuxRendererGL::Supports(ESCALINGMETHOD method) const
@@ -2673,7 +2674,7 @@ bool CLinuxRendererGL::Supports(ESCALINGMETHOD method) const
     if (major > 3 ||
         (major == 3 && minor >= 2))
       hasFramebuffer = true;
-    if (m_renderSystem->IsExtSupported("GL_EXT_framebuffer_object"))
+    if (CGLExtensions::IsExtensionSupported(CGLExtensions::EXT_framebuffer_object))
       hasFramebuffer = true;
     if (hasFramebuffer  && (m_renderMethod & RENDER_GLSL))
       return true;

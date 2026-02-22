@@ -83,6 +83,15 @@ void CTextureArray::Reset()
   m_texWidth = 0;
   m_texHeight = 0;
   m_texCoordsArePixels = false;
+  m_scalingMethod = TEXTURE_SCALING::UNKNOWN;
+}
+
+void CTextureArray::SetScalingMethod(TEXTURE_SCALING scalingMethod)
+{
+  m_scalingMethod = scalingMethod;
+
+  for (const std::shared_ptr<CTexture>& texture : m_textures)
+    texture->SetScalingMethod(m_scalingMethod);
 }
 
 void CTextureArray::Add(std::shared_ptr<CTexture> texture, int delay)
@@ -139,7 +148,7 @@ CTextureMap::~CTextureMap()
 
 bool CTextureMap::Release()
 {
-  if (!m_texture.m_textures.size())
+  if (m_texture.m_textures.empty())
     return true;
   if (!m_referenceCount)
     return true;
