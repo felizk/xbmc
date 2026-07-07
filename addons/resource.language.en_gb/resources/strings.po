@@ -22466,7 +22466,19 @@ msgctxt "#36642"
 msgid "No orphaned add-ons to remove."
 msgstr ""
 
-#empty strings from id 36643 to 36898
+#. Label of the setting to configure the maximum number of reusable add-on script threads
+#: system/settings/settings.xml
+msgctxt "#36643"
+msgid "Maximum reusable add-on threads"
+msgstr ""
+
+#. Description of the setting with label #36643 "Maximum reusable add-on threads"
+#: system/settings/settings.xml
+msgctxt "#36644"
+msgid "The maximum number of idle interpreter threads to keep alive for reuse when running add-on scripts. Higher values can make add-ons start faster at the cost of using more memory."
+msgstr ""
+
+#empty strings from id 36645 to 36898
 
 #. Description of setting with label #729 "Enable SSL"
 #: system/settings/settings.xml
